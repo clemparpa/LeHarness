@@ -23,7 +23,7 @@ utilisable par un agent sans risque de sortie de son périmètre.
 | Commandes pures : invoquées par nom (`pure <nom>`), fichiers sensibles déclarés par regex, scan des changements entre chaque exécution | ✅ décidé |
 | Session de la console | ✅ décidé — **stateless** : chaque commande repart du root, pas de `cd` persistant en v1 |
 | Interface de la console | ✅ décidé — **sous-processus dédié**, protocole ligne par ligne sur stdin/stdout : une commande en entrée, un résultat en sortie. Isolation par processus : un crash de la console (ex. lecture d'un très gros fichier) ne fait pas planter le harness |
-| Confinement : logique (`resolve()` pur Rust) vs dur (chroot / user namespace / sandbox OS) | ⏳ à trancher |
+| Confinement | ✅ décidé — **v1 : logique pur Rust** (`resolve()` + canonicalize + tests d'évasion en CI), marche partout sans privilèges. **v2 (déploiement remote) : user namespace non privilégié + chroot** par-dessus (defense in depth, le noyau bloque même en cas de bug). Jamais de root global au lancement de l'agent. L'API reste identique, seul le lanceur change |
 | Format des sorties et erreurs (texte brut vs JSON, codes de sortie) | ⏳ à trancher |
 
 ## Modèle de sécurité

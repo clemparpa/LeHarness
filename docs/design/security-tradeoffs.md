@@ -53,7 +53,7 @@ Déjà décidé (passage direct au shell), mais le curseur restant est **l'envir
 | Axe | Curseur v1 proposé |
 |---|---|
 | Interface | ✅ **Sous-processus dédié** (décidé), protocole ligne par ligne sur stdin/stdout — un crash de la console (gros fichier, OOM) n'affecte pas le harness |
-| Confinement | Logique pur Rust, tests d'évasion en CI, archi prête pour userns plus tard |
+| Confinement | ✅ **Décidé** : v1 = logique pur Rust (partout, sans privilèges) ; v2 sur le serveur remote = user namespace non privilégié + chroot par-dessus. Jamais de root global au lancement |
 | Session | ✅ **Stateless** (décidé) : chaque commande repart du root, pas de `cd` en v1 |
 | Sorties | JSON structuré (stdout/stderr/code) |
 | Pures | shell réel, cwd=root, env minimale, timeout, scan des diffs avant exécution |

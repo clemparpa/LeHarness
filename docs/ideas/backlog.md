@@ -2,8 +2,6 @@
 
 ## ⏳ À trancher (décisions en attente)
 
-- [ ] **Confinement** : logique pur Rust (`resolve()` + canonicalize) ou dur
-      (chroot, user namespace, sandbox OS) ? Jusqu'où aller sans privilèges root ?
 - [ ] **Format des sorties/erreurs** : texte brut ou structuré (JSON) ? code de
       sortie façon shell en cas d'échec ?
 
@@ -19,6 +17,10 @@
 - [x] Interface : **sous-processus dédié**, protocole stdin/stdout ligne par ligne
       (isolation par processus — un crash de la console ne fait pas planter le harness,
       ex. lecture d'un très gros fichier)
+- [x] Confinement : **v1 logique pur Rust** (resolve + canonicalize + tests d'évasion
+      CI, sans privilèges, portable) ; **v2 sur le serveur remote : user namespace
+      non privilégié + chroot** par-dessus (defense in depth). Jamais de root global
+      au lancement de l'agent. Vérifier `unprivileged_userns_clone` au boot du serveur
 - [x] Fichiers sensibles déclarés par regex ; scan des changements (diff) entre
       chaque exécution pour détecter du code adversarial
 
