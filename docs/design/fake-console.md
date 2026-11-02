@@ -56,7 +56,8 @@ après expansion de glob ou substitution de variable.
 | `cat <path>` | ✅ | `resolve()` + taille max |
 | `ls [path]` | ✅ | `resolve()`, entrées bornées |
 | `echo <text> > <path>` | ✅ | `resolve()`, taille max, `>` seul opérateur de redirection |
-| `grep <pattern> <path...>` | ✅ | via crate `grep`, fichiers bornés |
+| `grep <pattern> <path...>` | ✅ | via crate `grep`, fichiers bornés. Par défaut respecte `.gitignore` (via `ignore`) ; flag explicite `--all` (style ripgrep `-u`) pour inclure les fichiers ignorés (ex. `node_modules`) — chaque fichier matché passe quand même par `resolve()` + bornes |
+| `ls [path]` | ✅ | idem : respecte `.gitignore` par défaut, `--all` pour tout lister |
 | `sub <pattern> <repl> <path>` (sed-like) | ✅ | substitution via `regex` uniquement, fichiers bornés |
 | `&&` | ✅ | chaînage : exécution séquentielle, stop au 1er échec. **Les deux côtés doivent être whitelist ou trusted.** Jamais de vrai shell |
 | `;` | ✅ | interprété comme `&&` (plus strict que bash : stop au 1er échec) — l'agent n'est pas dépaysé |
