@@ -59,6 +59,27 @@ Avant qu'une sortie ne quitte la console (ou ne parte dans un pipe) :
 - `a > f` : `f` est validé par la boucle niveau 2 **avant** l'exécution de `a` ;
   la sortie écrite est aussi bornée.
 
+## Interface d'écriture unique (Sink)
+
+Pour éviter toute faille, **toute écriture passe par une seule interface**
+(abstraction `Sink` en Rust, ex. trait avec `write(bytes) -> Result<usize>`).
+Il existe exactement trois implémentations, et aucune autre code ne doit
+écrire directement :
+
+| Sink | Destination | Validations appliquées |
+|---|---|---|
+| `FileSink` | fichier dans le root (redirections `>`/`>>`) | niveau 2 (resolve + sensibles + bornes + quota) **avant ouverture**, puis masquage secrets + borne de taille pendant l'écriture |
+| `HarnessSink` | réponse JSON vers le harness (stdout du process) | niveau 3 (troncature, masquage secrets) |
+| `PipeSink` | flux brut vers la commande suivante (pipe interne) | troncature uniquement, pas de masquage (flux interne) |
+
+Règles :
+- `FileSink` ouvre le fichier **uniquement après** validation complète du chemin
+  (resolve + sensibles + bornes) — jamais l'inverse ;
+- le masquage des secrets est appliqué dans `FileSink` et `HarnessSink`, jamais
+  dans `PipeSink` ;
+- aucune commande (whitelist ou trusted) n'a le droit d'ouvrir un fichier en
+  écriture directement : tout passe par `Sink`.
+
 ## Ce qu'il faut retenir
 
 > Toute donnée qui entre, touche au disque, ou sort passe par une validation
