@@ -58,13 +58,13 @@ après expansion de glob ou substitution de variable.
 | `echo <text> > <path>` | ✅ | `resolve()`, taille max, `>` seul opérateur de redirection |
 | `grep <pattern> <path...>` | ✅ | via crate `grep`, fichiers bornés |
 | `sub <pattern> <repl> <path>` (sed-like) | ✅ | substitution via `regex` uniquement, fichiers bornés |
-| `&&` | ✅ | simple chaînage : exécution séquentielle, stop au 1er échec. **Les deux côtés doivent être whitelist ou trusted.** Jamais de vrai shell |
-| `;` | ❌ | refusé (préférer `&&` explicite) |
-| pipes `\|` | ❌ | refusé en v1 |
-| `>>`, `<`, `2>`, autres redirections | ❌ | seul `>` de `echo` est permis |
+| `&&` | ✅ | chaînage : exécution séquentielle, stop au 1er échec. **Les deux côtés doivent être whitelist ou trusted.** Jamais de vrai shell |
+| `;` | ✅ | interprété comme `&&` (plus strict que bash : stop au 1er échec) — l'agent n'est pas dépaysé |
+| pipes `\|` | ✅ (prévu) | **whitelist uniquement, jamais avec `trusted`** ; la console unwrap le `stdout` JSON de la commande de gauche et le passe en entrée de celle de droite |
+| `>>`, `<`, `2>`, autres redirections | ⏳ | seul `>` de `echo` est permis en v1 ; les autres redirections seront discutées plus tard |
 | globs `*`, `?`, `**` | ✅ | via `wax` ; **chaque fichier matché passe individuellement par `resolve()` + sensibles**, nb de matchs borné |
-| variables `$VAR` / `${VAR}` | ⚠️ restreint | uniquement variables déclarées par l'humain (ex. `$ROOT`) ; **pas d'affectation `FOO=bar` par l'agent**, pas de `$?`, `$!`, backticks, `$(...)` |
-| backticks / `$(...)` | ❌ | jamais de sous-exécution de commande |
+| variables `$VAR`, `${VAR}`, `$(VAR)` | ⚠️ restreint | uniquement des variables **déclarées par l'humain** (ex. `$ROOT`) ; `$(...)` accepté mais le contenu doit matcher `^[A-Za-z_][A-Za-z0-9_]*$` (nom de variable seule, jamais de sous-exécution) ; **pas d'affectation `FOO=bar` par l'agent**, pas de variables d'état interne (`$?`, `$!`, `$0`...) |
+| backticks | ❌ | jamais de sous-exécution de commande |
 | `trusted <nom>` | ✅ | commande du fichier `trusted.txt` du repo, avec checksum + scan demandé au harness |
 | tout le reste | ❌ | `unknown command`, fail-closed |
 
