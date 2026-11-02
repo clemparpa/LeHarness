@@ -39,13 +39,13 @@ Peu d'impact sécurité direct, mais un point subtil : **si la sortie est du tex
 
 **Curseur recommandé** : JSON structuré pour le transport console ↔ harness, même si l'agent voit au final du texte lisible.
 
-## Axe 5 — Commandes pures : exécution
+## Axe 5 — Commandes trusted : exécution
 
 Déjà décidé (passage direct au shell), mais le curseur restant est **l'environnement d'exécution** :
 
 - `cwd = root` forcé ✅
 - variables d'env réduites (pas de `PATH` hérité, pas de secrets du harness dans l'env) — à confirmer
-- timeout par commande pure — à confirmer
+- timeout par commande trusted — à confirmer
 - user OS dédié (pas le même user que le harness) — le plus sûr, coût : setup
 
 ## Synthèse — proposition de curseur v1
@@ -56,4 +56,4 @@ Déjà décidé (passage direct au shell), mais le curseur restant est **l'envir
 | Confinement | ✅ **Décidé** : v1 = logique pur Rust (partout, sans privilèges) ; v2 sur le serveur remote = user namespace non privilégié + chroot par-dessus. Jamais de root global au lancement |
 | Session | ✅ **Stateless** (décidé) : chaque commande repart du root, pas de `cd` en v1 |
 | Sorties | ✅ **JSON structuré** (décidé) : `{ok, code, stdout, stderr}` — séparation explicite contenu/métadonnées, moins de risque d'injection dans l'interprétation |
-| Pures | shell réel, cwd=root, env minimale, timeout, scan des diffs avant exécution |
+| Trusted | shell réel, cwd=root, env minimale, timeout, scan des diffs avant exécution |

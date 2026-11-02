@@ -9,7 +9,7 @@ utilisable par un agent sans risque de sortie de son périmètre.
    Aucune commande ne doit pouvoir lire/écrire hors de ce root, par quelque moyen
    que ce soit (`..`, symlinks, chemins absolus, encodages, etc.).
 2. **Opérations limitées** : seules quelques commandes whitelistées sont disponibles.
-3. **Commandes pures** : commandes arbitraires définies par l'humain dans un
+3. **Commandes trusted** : commandes arbitraires définies par l'humain dans un
    fichier du repo que l'agent ne peut pas modifier. Elles ne sont **pas**
    interprétées par la console : elles sont passées telles quelles à un vrai
    shell, considérées comme sûres car validées par l'humain, avec checksum +
@@ -20,7 +20,7 @@ utilisable par un agent sans risque de sortie de son périmètre.
 | Sujet | Statut |
 |---|---|
 | Syntaxe des commandes whitelist proche du shell (bash) | ✅ décidé — pour que les modèles utilisent le tool au mieux |
-| Commandes pures : invoquées par nom (`pure <nom>`), fichiers sensibles déclarés par regex, scan des changements entre chaque exécution | ✅ décidé |
+| Commandes trusted : invoquées par nom (`trusted <nom>`), fichiers sensibles déclarés par regex, scan des changements entre chaque exécution | ✅ décidé |
 | Session de la console | ✅ décidé — **stateless** : chaque commande repart du root, pas de `cd` persistant en v1 |
 | Interface de la console | ✅ décidé — **sous-processus dédié**, protocole ligne par ligne sur stdin/stdout : une commande en entrée, un résultat en sortie. Isolation par processus : un crash de la console (ex. lecture d'un très gros fichier) ne fait pas planter le harness |
 | Confinement | ✅ décidé — **v1 : logique pur Rust** (`resolve()` + canonicalize + tests d'évasion en CI), marche partout sans privilèges. **v2 (déploiement remote) : user namespace non privilégié + chroot** par-dessus (defense in depth, le noyau bloque même en cas de bug). Jamais de root global au lancement de l'agent. L'API reste identique, seul le lanceur change |
@@ -65,18 +65,18 @@ sauf `>` pour `echo`, pas de variables, pas de sous-commandes, pas de `&&`/`;`.
   (mini-quoteur explicite et testé, style `"..."` et `'...'` comme bash).
 - Aucun appel à `sh -c` / `bash -c` pour les commandes whitelistées.
 
-## Commandes pures
+## Commandes trusted
 
-- Définies par l'humain dans un fichier dédié du repo (ex. `console/pures.txt`),
+- Définies par l'humain dans un fichier dédié du repo (ex. `console/trusted.txt`),
   que l'agent ne peut pas modifier (revu en PR, protégé par review humaine).
-- Invoquées par l'agent via `pure <nom>` ; la console ne parse pas le contenu,
+- Invoquées par l'agent via `trusted <nom>` ; la console ne parse pas le contenu,
   elle le passe tel quel à un vrai shell avec `cwd = root` et un environnement
   réduit (variables d'env minimales).
 - **Fichiers sensibles** : déclarés par des regex (ex. `.*\.env`, `.*secret.*`,
-  `tests/.*`). Toute commande pure qui touche à un fichier matchant est soit
+  `tests/.*`). Toute commande trusted qui touche à un fichier matchant est soit
   refusée, soit soumise à un scan renforcé.
 - Avant chaque exécution :
-  1. **checksum** (sha256) du fichier de commandes pures consigné ;
+  1. **checksum** (sha256) du fichier de commandes trusted consigné ;
   2. **scan des changements** depuis la dernière exécution validée (diff du
      fichier + du code de test associé) pour vérifier qu'il n'y a pas de code
      adversarial introduit ;
@@ -87,10 +87,10 @@ sauf `>` pour `echo`, pas de variables, pas de sous-commandes, pas de `&&`/`;`.
 - Le token reste **en mémoire dans le harness** et transite uniquement par
   **fd / socket unix** vers un **credential helper git externe**, placé hors du
   root et non lisible par l'agent.
-- Jamais dans l'env du shell de la console (une commande pure pourrait faire
+- Jamais dans l'env du shell de la console (une commande trusted pourrait faire
   `printenv`), jamais en argument de ligne de commande (visible dans `ps`),
   jamais dans un fichier lisible par l'agent.
-- `HOME` du sous-processus des commandes pures pointé hors du root, avec une
+- `HOME` du sous-processus des commandes trusted pointé hors du root, avec une
   config git propre ; `.git/config` et `.git-credentials` sont des fichiers
   sensibles (regex).
 - Toute occurrence du token dans `stdout`/`stderr` est masquée (`***`) avant
@@ -98,22 +98,37 @@ sauf `>` pour `echo`, pas de variables, pas de sous-commandes, pas de `&&`/`;`.
 - Les tokens d'installation GitHub expirent après 1 h : le harness les refresh
   lui-même et fournit le token frais à chaque exécution.
 
-## Organisation du code (proposition, à discuter)
+## Structure du repo (monorepo, workspace Cargo)
 
 ```
-src/
-  lib.rs
-  console.rs        // boucle REPL / API d'exécution
-  resolve.rs        // resolve() : confinement root, unique point de passage
-  commands/         // cat, ls, echo, grep (whitelist)
-  pure.rs           // commandes pures : checksum + scan des changements + exécution
-console/
-  pures.txt         // fichier de commandes pures (humain only)
-  sensibles.txt     // regex des fichiers sensibles
-tests/
-  resolve.rs        // tests d'évasion (.., symlinks, absolus, unicode...)
-  commands.rs
+LeHarness/
+  Cargo.toml          # workspace root (virtual manifest, un seul Cargo.lock)
+  crates/
+    la-console/       # la fausse console (binaire + lib)
+      Cargo.toml
+      src/
+        main.rs       # CLI clap : --root, bornes ; spawn du protocole JSON
+        lib.rs
+        console.rs    # boucle protocole JSON stdin/stdout (tokio)
+        resolve.rs    # resolve() : confinement root, unique point de passage
+        commands/     # cat, ls, echo, grep (whitelist)
+        trusted.rs    # commandes trusted : parsing + wrapping + checksum + scan + exécution
+      tests/
+        evasion.rs    # tests d'évasion (.., symlinks, absolus, unicode...)
+        commands.rs
+  tests/              # tests d'intégration haut niveau + simulations (niveau workspace)
+  docs/
 ```
+
+- Nommage : noms de crates en kebab-case (`la-console`) ; tout le code, fichiers et
+  symboles en anglais.
+- **Commandes trusted** : le fichier `trusted.txt` (et les regex de fichiers
+  sensibles) vit **dans chaque repo où tourne l'agent**, pas dans la-console.
+  Le module `trusted.rs` de la console ne gère que le parsing, le wrapping,
+  la sécu (checksum, scan des diffs) et l'exécution — il reçoit le chemin du
+  fichier en argument.
+- Le crate `harness` n'est pas créé pour l'instant ; on s'y attaquera quand on
+  travaillera sur le harness.
 
 ## Dépendances (figées pour la v1)
 
@@ -123,7 +138,7 @@ tests/
 | Async + timeout par commande | `tokio` |
 | `grep` dans des fichiers | `grep` (moteur ripgrep en lib) |
 | `ls` (respecte .gitignore, bornes) | `ignore` (walker ripgrep) |
-| Checksum sha256 des commandes pures | `sha2` |
+| Checksum sha256 des commandes trusted | `sha2` |
 | Regex des fichiers sensibles | `regex` (temps linéaire, pas de ReDoS) |
 | Limites mémoire/CPU du sous-processus | `rlimit` |
 | Logs structurés | `tracing`, `tracing-subscriber` |

@@ -17,7 +17,7 @@
 
 - [x] Syntaxe des commandes whitelist proche du shell bash (les agents connaissent
       bien bash, c'est mieux pour l'adoption du tool)
-- [x] Commandes pures invoquées par nom (`pure <nom>`), non interprétées par la
+- [x] Commandes trusted invoquées par nom (`trusted <nom>`), non interprétées par la
       console, passées telles quelles au shell, considérées sûres car validées
       par l'humain
 - [x] Console **stateless** : chaque commande repart du root, pas de `cd`
@@ -57,6 +57,6 @@
 
 ## Process
 
-- [ ] Revue humaine obligatoire sur toute modification de `console/pures.txt`
+- [ ] Revue humaine obligatoire sur toute modification de `console/trusted.txt`
       et `console/sensibles.txt` (branch protection / CODEOWNERS)
 - [ ] Tests d'évasion en CI obligatoires avant merge
