@@ -47,6 +47,11 @@
 
 ## Harness (brique suivante)
 
+- [x] **Hooks de session** (décidé en principe) : le harness expose des hooks
+      (démarrage / checkpoint / fin / reprise de session) ; la persistance elle-même
+      (DB managée, stockage du root, verrou anti-parallèle) est gérée par la couche
+      au-dessus (orchestrateur GitHub App, jobs éphémères), pas par le harness
+
 - [ ] Comment la console s'intègre au harness : subprocess ? canal de
       communication (stdin/stdout, socket locale, fichiers) ?
 
