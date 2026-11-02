@@ -45,6 +45,20 @@
 
 - [ ] Ajouter `head`/`tail` ? `wc` ? `mkdir` ? (`rm` probablement non)
 
+## Module navigateur (v2, hors la-console — option B : process/conteneur dédié, réseau localhost uniquement)
+
+Candidats à évaluer (que du Rust/Zig, pas de C++/Swift) :
+
+| Projet | Langage | Empreinte | Pilotage | Notes |
+|---|---|---|---|---|
+| [oxibrowser](https://github.com/project-oxi/oxibrowser) | Rust pur (Servo) | ~24-44 Mo binaire, ~8 Mo RAM | Compatible CDP (Puppeteer/Playwright) | Conçu pour les agents IA, SSRF protection intégrée (blocage CIDR), robots.txt |
+| [Lightpanda](https://lightpanda.io/) | Zig | 9x moins de RAM que Chrome, 11x plus rapide | Compatible CDP | Headless, open source, pensé scraping/automation IA |
+| [Servo](https://servo.org/) | Rust | Léger | Embarquable en librairie | Moteur officiel, mais historiquement instable en embarqué (crashs rapportés) |
+| [Boa](https://github.com/boa-dev/boa) | Rust | Très léger | Librairie embarquable | Moteur JS seul, pas de DOM/CSS — insuffisant seul pour rendre une page |
+
+- [ ] Choix du moteur à trancher plus tard après évaluation concrète (stabilité, couverture sites modernes)
+- [ ] Quel que soit le moteur : process/conteneur isolé, réseau restreint à localhost, rlimits stricts, sorties (screenshots/DOM) passent par `resolve()` + bornes
+
 ## Harness (brique suivante)
 
 - [x] **Hooks de session** (décidé en principe) : le harness expose des hooks
