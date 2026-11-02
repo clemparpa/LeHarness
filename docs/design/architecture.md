@@ -70,12 +70,10 @@ Avant qu'une sortie ne quitte la console (ou ne parte dans un pipe) :
   par la boucle de validation (resolve + sensibles), **sauf flag explicite**
   déclaré par l'humain dans `trusted.txt` (ex. `trusted run-tests --no-path-check`)
   pour les commandes qui doivent légitimement toucher hors du root.
-- **Masquage des secrets** : voir `fake-console.md` section "Secrets" — toute
-  occurrence du token (ou autre secret connu du harness) dans `stdout`/`stderr`
-  est remplacée par `***` avant envoi de la réponse JSON. À trancher : s'applique
-  aussi aux flux internes entre commandes, ou seulement à la sortie vers le harness ?
-
-## Questions ouvertes à discuter
-
-- [ ] Le masquage des secrets s'applique-t-il aussi aux flux internes
-      entre commandes (pipes), ou seulement à la sortie finale vers le harness ?
+- ✅ **Masquage des secrets** : toute occurrence d'un secret connu (token GitHub
+  App...) est remplacée par `***` dans deux cas uniquement :
+  1. avant l'envoi de la réponse JSON au harness (sortie de la console) ;
+  2. **avant toute écriture sur disque** dans le root (redirections `>`/`>>`,
+     fichiers écrits par une commande) — un secret ne doit jamais être persisté.
+  Pas de masquage dans les flux internes entre commandes (pipes), pour ne pas
+  casser les chaînages légitimes.
