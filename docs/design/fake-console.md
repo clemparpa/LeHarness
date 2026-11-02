@@ -59,6 +59,7 @@ après expansion de glob ou substitution de variable.
 | `grep <pattern> <path...>` | ✅ | via crate `grep`, fichiers bornés. Par défaut respecte `.gitignore` (via `ignore`) ; flag explicite `--all` (style ripgrep `-u`) pour inclure les fichiers ignorés (ex. `node_modules`) — chaque fichier matché passe quand même par `resolve()` + bornes |
 | `ls [path]` | ✅ | idem : respecte `.gitignore` par défaut, `--all` pour tout lister |
 | `sub <pattern> <repl> <path>` (sed-like) | ✅ | substitution via `regex` uniquement, fichiers bornés |
+| `http <METHOD> <url> [--data <body>] [--header k:v]` | ✅ | nom inspiré de HTTPie. Implémentation **Rust maison** (pas de binaire curl), crate `reqwest` + rustls côté console. Allowlist d'hôtes : v1 = `localhost`/`127.0.0.1`/`::1` uniquement, extensible via liste déclarée par l'humain dans le repo. Blocage des IP de métadonnées cloud (169.254.169.254) et plages privées non déclarées. Timeout court, taille de réponse bornée, redirects revalidés contre l'allowlist. `--data` borné en taille |
 | `&&` | ✅ | chaînage : exécution séquentielle, stop au 1er échec. **Les deux côtés doivent être whitelist ou trusted.** Jamais de vrai shell |
 | `;` | ✅ | interprété comme `&&` (plus strict que bash : stop au 1er échec) — l'agent n'est pas dépaysé |
 | pipes `\|` | ✅ (prévu) | **whitelist uniquement, jamais avec `trusted`** ; la console unwrap le `stdout` JSON de la commande de gauche et le passe en entrée de celle de droite |
