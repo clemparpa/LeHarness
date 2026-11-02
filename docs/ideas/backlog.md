@@ -3,8 +3,7 @@
 ## ⏳ À trancher (décisions en attente)
 
 - [ ] **Interface de la console** : binaire REPL en stdin/stdout ? librairie Rust
-      appelée par le harness ? processus persistant avec session (cwd relatif qui
-      évolue) ou stateless (chaque commande repart du root) ?
+      appelée par le harness ? sous-processus dédié ?
 - [ ] **Confinement** : logique pur Rust (`resolve()` + canonicalize) ou dur
       (chroot, user namespace, sandbox OS) ? Jusqu'où aller sans privilèges root ?
 - [ ] **Format des sorties/erreurs** : texte brut ou structuré (JSON) ? code de
@@ -17,6 +16,8 @@
 - [x] Commandes pures invoquées par nom (`pure <nom>`), non interprétées par la
       console, passées telles quelles au shell, considérées sûres car validées
       par l'humain
+- [x] Console **stateless** : chaque commande repart du root, pas de `cd`
+      persistant (moins d'état à valider, chaque `resolve()` repart d'une base connue)
 - [x] Fichiers sensibles déclarés par regex ; scan des changements (diff) entre
       chaque exécution pour détecter du code adversarial
 

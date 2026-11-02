@@ -21,7 +21,8 @@ utilisable par un agent sans risque de sortie de son périmètre.
 |---|---|
 | Syntaxe des commandes whitelist proche du shell (bash) | ✅ décidé — pour que les modèles utilisent le tool au mieux |
 | Commandes pures : invoquées par nom (`pure <nom>`), fichiers sensibles déclarés par regex, scan des changements entre chaque exécution | ✅ décidé |
-| Interface de la console (binaire REPL / librairie / processus persistant, session avec cwd ou stateless) | ⏳ à trancher |
+| Session de la console | ✅ décidé — **stateless** : chaque commande repart du root, pas de `cd` persistant en v1 |
+| Interface de la console (binaire REPL / librairie / processus dédié) | ⏳ à trancher |
 | Confinement : logique (`resolve()` pur Rust) vs dur (chroot / user namespace / sandbox OS) | ⏳ à trancher |
 | Format des sorties et erreurs (texte brut vs JSON, codes de sortie) | ⏳ à trancher |
 

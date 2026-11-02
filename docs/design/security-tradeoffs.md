@@ -54,6 +54,6 @@ Déjà décidé (passage direct au shell), mais le curseur restant est **l'envir
 |---|---|
 | Interface | Sous-processus dédié, protocole JSON sur stdin/stdout |
 | Confinement | Logique pur Rust, tests d'évasion en CI, archi prête pour userns plus tard |
-| Session | Stateless (v1), `cd` en option v2 si besoin |
+| Session | ✅ **Stateless** (décidé) : chaque commande repart du root, pas de `cd` en v1 |
 | Sorties | JSON structuré (stdout/stderr/code) |
 | Pures | shell réel, cwd=root, env minimale, timeout, scan des diffs avant exécution |
