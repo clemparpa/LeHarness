@@ -1,38 +1,45 @@
-# Backlog d'idées à discuter
+# Backlog d'idées — à discuter
+
+## ⏳ À trancher (décisions en attente)
+
+- [ ] **Interface de la console** : binaire REPL en stdin/stdout ? librairie Rust
+      appelée par le harness ? processus persistant avec session (cwd relatif qui
+      évolue) ou stateless (chaque commande repart du root) ?
+- [ ] **Confinement** : logique pur Rust (`resolve()` + canonicalize) ou dur
+      (chroot, user namespace, sandbox OS) ? Jusqu'où aller sans privilèges root ?
+- [ ] **Format des sorties/erreurs** : texte brut ou structuré (JSON) ? code de
+      sortie façon shell en cas d'échec ?
+
+## ✅ Décidés
+
+- [x] Syntaxe des commandes whitelist proche du shell bash (les agents connaissent
+      bien bash, c'est mieux pour l'adoption du tool)
+- [x] Commandes pures invoquées par nom (`pure <nom>`), non interprétées par la
+      console, passées telles quelles au shell, considérées sûres car validées
+      par l'humain
+- [x] Fichiers sensibles déclarés par regex ; scan des changements (diff) entre
+      chaque exécution pour détecter du code adversarial
 
 ## Sécurité / confinement
 
-- [ ] V1 : `resolve()` avec canonicalize + rejet `..` + symlinks. Quels vecteurs
-      d'évasion tester en priorité ? (unicode, trailing slashes, `//`, chemins
-      Windows si pertinent, NUL bytes)
-- [ ] Profondeur max de `ls`, nombre max d'entrées, taille max par fichier lu
-- [ ] Faut-il interdire l'écrasement de fichiers existants avec `echo >` ?
+- [ ] Vecteurs d'évasion prioritaires à tester : `..`, symlinks (créés avant/après
+      canonicalize), chemins absolus, unicode, trailing slashes, `//`, NUL bytes
+- [ ] Bornes : profondeur max de `ls`, nb max d'entrées, taille max par fichier
+- [ ] `echo >` écrase-t-il un fichier existant ? et `>>` (append) un jour ?
 - [ ] Hardlinks : détectables portablement en Rust stable ?
-- [ ] Faut-il un timeout par commande ?
+- [ ] Timeout par commande ?
 
 ## Commandes whitelist
 
-- [ ] Ajouter `head`/`tail` ? `wc` ? `mkdir` ? `rm` (probablement non) ?
-- [ ] `echo >> file` (append) ou uniquement écrasement ?
-- [ ] Format de sortie : texte brut ou structuré (JSON) pour faciliter le harness ?
-
-## Commandes "putes"
-
-- [ ] Format du fichier de commandes (une par ligne ? nom + commande ?)
-- [ ] Où stocker le checksum attendu : dans le repo (signé) ou généré à la volée ?
-- [ ] Mécanisme concret du "scan par un autre agent" : même agent, prompt différent ?
-      Agent séparé ? Critères de scan formalisés (liste de patterns interdits) ?
-- [ ] Environnement d'exécution des commandes pute : variables d'env, PATH réduit,
-      `cwd` forcé au root
+- [ ] Ajouter `head`/`tail` ? `wc` ? `mkdir` ? (`rm` probablement non)
 
 ## Harness (brique suivante)
 
-- [ ] Comment la fausse console s'intègre au harness : API synchrone ? subprocess ?
-      Canal de communication (stdin/stdout, socket locale, fichiers) ?
-- [ ] Gestion des sessions : état persistant (cwd relatif) ou stateless ?
+- [ ] Comment la console s'intègre au harness : subprocess ? canal de
+      communication (stdin/stdout, socket locale, fichiers) ?
 
 ## Process
 
-- [ ] Revue humaine obligatoire sur toute modification de `tests/commands.pwd`
-      (branch protection / CODEOWNERS)
+- [ ] Revue humaine obligatoire sur toute modification de `console/pures.txt`
+      et `console/sensibles.txt` (branch protection / CODEOWNERS)
 - [ ] Tests d'évasion en CI obligatoires avant merge
