@@ -45,25 +45,35 @@ utilisable par un agent sans risque de sortie de son périmètre.
 - Règle d'or : **jamais de `Path::join` direct sur l'input utilisateur** sans passer
   par `resolve`. Aucune exception.
 
-### Whitelist de commandes (v1)
+### Whitelist de commandes (v1) — tableau récapitulatif de tout ce qui est autorisé
 
-Syntaxe volontairement proche du shell bash, pour que les agents la reconnaissent.
+Règle absolue : **toute commande exécutée doit matcher la whitelist (ou trusted),
+et tout chemin impliqué passe par `resolve()` + test fichiers sensibles**, même
+après expansion de glob ou substitution de variable.
 
-| Commande | Effet | Contraintes |
+| Élément | Autorisé ? | Détail |
 |---|---|---|
-| `cat <path>` | lit un fichier | `resolve` + taille max (ex. 1 Mo) |
-| `ls [path]` | liste un répertoire | `resolve`, profondeur/nb d'entrées bornés |
-| `echo <text> > <path>` | écrit/écrase un fichier | `resolve`, taille max |
-| `grep <pattern> <path...>` | recherche texte | `resolve`, fichiers bornés en taille |
-
-Tout le reste est refusé (`unknown command`). Pas de pipes, pas de redirections
-sauf `>` pour `echo`, pas de variables, pas de sous-commandes, pas de `&&`/`;`.
+| `cat <path>` | ✅ | `resolve()` + taille max |
+| `ls [path]` | ✅ | `resolve()`, entrées bornées |
+| `echo <text> > <path>` | ✅ | `resolve()`, taille max, `>` seul opérateur de redirection |
+| `grep <pattern> <path...>` | ✅ | via crate `grep`, fichiers bornés |
+| `sub <pattern> <repl> <path>` (sed-like) | ✅ | substitution via `regex` uniquement, fichiers bornés |
+| `&&` | ✅ | simple chaînage : exécution séquentielle, stop au 1er échec. **Les deux côtés doivent être whitelist ou trusted.** Jamais de vrai shell |
+| `;` | ❌ | refusé (préférer `&&` explicite) |
+| pipes `\|` | ❌ | refusé en v1 |
+| `>>`, `<`, `2>`, autres redirections | ❌ | seul `>` de `echo` est permis |
+| globs `*`, `?`, `**` | ✅ | via `wax` ; **chaque fichier matché passe individuellement par `resolve()` + sensibles**, nb de matchs borné |
+| variables `$VAR` / `${VAR}` | ⚠️ restreint | uniquement variables déclarées par l'humain (ex. `$ROOT`) ; **pas d'affectation `FOO=bar` par l'agent**, pas de `$?`, `$!`, backticks, `$(...)` |
+| backticks / `$(...)` | ❌ | jamais de sous-exécution de commande |
+| `trusted <nom>` | ✅ | commande du fichier `trusted.txt` du repo, avec checksum + scan demandé au harness |
+| tout le reste | ❌ | `unknown command`, fail-closed |
 
 ### Parsing
 
-- Parsing maison, strict, sans shell : la commande est découpée en tokens simples
-  (mini-quoteur explicite et testé, style `"..."` et `'...'` comme bash).
-- Aucun appel à `sh -c` / `bash -c` pour les commandes whitelistées.
+- Tokenisation via `shell-words` (quotes `"..."` / `'...'` style bash), puis
+  interprétation **maison et cadrée** des seuls opérateurs autorisés (`&&`,
+  globs `wax`, variables déclarées). Aucun appel à `sh -c` / `bash -c` pour
+  les commandes whitelistées.
 
 ## Commandes trusted
 
@@ -148,6 +158,8 @@ LeHarness/
 | Logs structurés | `tracing`, `tracing-subscriber` |
 | Erreurs typées | `thiserror` |
 | CLI de la console | `clap` |
+| Tokenisation shell (quotes, espaces) | `shell-words` |
+| Globs (`*.rs`, `**/*.md`) | `wax` (moteur de glob de ripgrep) |
 | Tests (répertoires temporaires) | `tempfile` (dev-dependency) |
 
 Notes :
