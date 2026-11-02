@@ -82,6 +82,22 @@ sauf `>` pour `echo`, pas de variables, pas de sous-commandes, pas de `&&`/`;`.
      adversarial introduit ;
   3. exécution uniquement si checksum attendu == checksum constaté et scan OK.
 
+## Secrets (GitHub App, ex. token git)
+
+- Le token reste **en mémoire dans le harness** et transite uniquement par
+  **fd / socket unix** vers un **credential helper git externe**, placé hors du
+  root et non lisible par l'agent.
+- Jamais dans l'env du shell de la console (une commande pure pourrait faire
+  `printenv`), jamais en argument de ligne de commande (visible dans `ps`),
+  jamais dans un fichier lisible par l'agent.
+- `HOME` du sous-processus des commandes pures pointé hors du root, avec une
+  config git propre ; `.git/config` et `.git-credentials` sont des fichiers
+  sensibles (regex).
+- Toute occurrence du token dans `stdout`/`stderr` est masquée (`***`) avant
+  l'envoi de la réponse JSON.
+- Les tokens d'installation GitHub expirent après 1 h : le harness les refresh
+  lui-même et fournit le token frais à chaque exécution.
+
 ## Organisation du code (proposition, à discuter)
 
 ```

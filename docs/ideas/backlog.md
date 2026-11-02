@@ -2,9 +2,16 @@
 
 ## ⏳ À trancher (décisions en attente)
 
-- [x] Format des sorties : **JSON structuré** `{ok, code, stdout, stderr}` entre
-      console et harness (séparation métadonnées/contenu, parsing fiable). Le harness
-      peut présenter le `stdout` brut à l'agent
+- [x] **Passage des secrets (GitHub App token) — ✅ décidé (option A)** : le token
+      reste **en mémoire dans le harness**, transite uniquement par **fd / socket
+      unix** vers un **credential helper git externe, hors du root et non lisible
+      par l'agent**. Jamais dans l'env du shell (`printenv` ne voit rien), jamais
+      en argv (`ps` ne voit rien), jamais dans un fichier lisible par l'agent.
+      `HOME` du sous-processus pointé hors du root avec une config git propre ;
+      `.git/config` et `.git-credentials` déclarés fichiers sensibles. Le token
+      est aussi **masqué** (`***`) dans stdout/stderr des réponses JSON
+
+## ✅ Décidés
 
 ## ✅ Décidés
 
