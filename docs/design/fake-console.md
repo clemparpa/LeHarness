@@ -185,6 +185,24 @@ Notes :
 - Spawn du sous-processus et pipes : `std::process` suffit, pas de crate.
 - Cœur sécurité (`resolve()`, parser whitelist) : **maison**, volontairement.
 
+## Stratégie de test
+
+- **TDD systématique** : la console est une fonction entrée texte → réponse JSON,
+  donc tout se teste sans infrastructure (`#[test]` + `cargo test`).
+- **`proptest`** : tests basés sur des propriétés, ex. « pour tout chemin généré,
+  `resolve()` ne renvoie jamais rien hors du root ».
+- **`cargo-fuzz`** (CI) : fuzzing coverage-guided sur le **parser** et `resolve()`
+  avec entrées aléatoires (bytes, unicode, chemins bizarres) pour trouver crashes
+  et évasions du root.
+- **`cargo mutants`** : mutation testing pour vérifier que les tests tuent
+  vraiment les mutations (déjà prévu dans `.gitignore`).
+- **Tests d'évasion manuels** dans `crates/la-console/tests/evasion.rs` :
+  `..`, symlinks (avant/après canonicalize), chemins absolus, unicode, `//`,
+  NUL bytes, hardlinks.
+- **Vérification formelle (Kani/Prusti)** : envisagée en v2 pour prouver des
+  invariants du parser ; pas en v1 car le risque principal vient de
+  l'interaction avec le vrai filesystem, que les vérificateurs modélisent mal.
+
 ## Principes
 
 - Fail-closed : au doute, refuser.
