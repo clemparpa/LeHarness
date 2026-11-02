@@ -115,9 +115,30 @@ tests/
   commands.rs
 ```
 
+## Dépendances (figées pour la v1)
+
+| Besoin | Crate |
+|---|---|
+| Protocole JSON stdin/stdout | `serde`, `serde_json` |
+| Async + timeout par commande | `tokio` |
+| `grep` dans des fichiers | `grep` (moteur ripgrep en lib) |
+| `ls` (respecte .gitignore, bornes) | `ignore` (walker ripgrep) |
+| Checksum sha256 des commandes pures | `sha2` |
+| Regex des fichiers sensibles | `regex` (temps linéaire, pas de ReDoS) |
+| Limites mémoire/CPU du sous-processus | `rlimit` |
+| Logs structurés | `tracing`, `tracing-subscriber` |
+| Erreurs typées | `thiserror` |
+| CLI de la console | `clap` |
+| Tests (répertoires temporaires) | `tempfile` (dev-dependency) |
+
+Notes :
+- `reqwest` (HTTP, refresh du token GitHub App) reste **côté harness**, jamais dans la console.
+- Spawn du sous-processus et pipes : `std::process` suffit, pas de crate.
+- Cœur sécurité (`resolve()`, parser whitelist) : **maison**, volontairement.
+
 ## Principes
 
 - Fail-closed : au doute, refuser.
 - Une seule fonction de résolution de chemins, testée agressivement.
 - Aucun `unsafe` dans la v1.
-- Pas de dépendances réseau ; deps minimales (`std` + éventuellement `sha2`, `regex`).
+- Pas de dépendances réseau dans la console.
