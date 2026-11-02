@@ -73,8 +73,12 @@ sauf `>` pour `echo`, pas de variables, pas de sous-commandes, pas de `&&`/`;`.
   elle le passe tel quel à un vrai shell avec `cwd = root` et un environnement
   réduit (variables d'env minimales).
 - **Fichiers sensibles** : déclarés par des regex (ex. `.*\.env`, `.*secret.*`,
-  `tests/.*`). Toute commande trusted qui touche à un fichier matchant est soit
-  refusée, soit soumise à un scan renforcé.
+  `\.git/config$`), une par ligne dans un fichier du repo de l'agent. Le matching
+  se fait sur le **chemin relatif au root** (plus portable, l'agent raisonne en
+  relatif vu que la console est stateless). Le moteur `regex` est à temps linéaire :
+  pas de ReDoS possible. Toute commande whitelist vers un chemin matchant est
+  refusée ; toute commande trusted qui touche à un fichier matchant est soumise
+  à un scan renforcé.
 - Avant chaque exécution :
   1. **checksum** (sha256) du fichier de commandes trusted consigné ;
   2. **scan des changements** depuis la dernière exécution validée (diff du
