@@ -61,7 +61,8 @@ après expansion de glob ou substitution de variable.
 | `&&` | ✅ | chaînage : exécution séquentielle, stop au 1er échec. **Les deux côtés doivent être whitelist ou trusted.** Jamais de vrai shell |
 | `;` | ✅ | interprété comme `&&` (plus strict que bash : stop au 1er échec) — l'agent n'est pas dépaysé |
 | pipes `\|` | ✅ (prévu) | **whitelist uniquement, jamais avec `trusted`** ; la console unwrap le `stdout` JSON de la commande de gauche et le passe en entrée de celle de droite |
-| `>>`, `<`, `2>`, autres redirections | ⏳ | seul `>` de `echo` est permis en v1 ; les autres redirections seront discutées plus tard |
+| redirections `>`, `>>`, `2>`, `2>&1`, `&>` | ✅ | le chemin de destination passe par la **boucle de validation** (resolve + sensibles + bornes) avant toute exécution. `>>` = append autorisé |
+| redirection `<` (stdin depuis fichier) | ⏳ reportée | à ouvrir plus tard avec le même pattern : boucle de validation identique + canal interne dédié (jamais le stdin du process, qui appartient au protocole JSON) |
 | globs `*`, `?`, `**` | ✅ | via `wax` ; **chaque fichier matché passe individuellement par `resolve()` + sensibles**, nb de matchs borné |
 | variables `$VAR`, `${VAR}`, `$(VAR)` | ⚠️ restreint | uniquement des variables **déclarées par l'humain** (ex. `$ROOT`) ; `$(...)` accepté mais le contenu doit matcher `^[A-Za-z_][A-Za-z0-9_]*$` (nom de variable seule, jamais de sous-exécution) ; **pas d'affectation `FOO=bar` par l'agent**, pas de variables d'état interne (`$?`, `$!`, `$0`...) |
 | backticks | ❌ | jamais de sous-exécution de commande |
@@ -71,9 +72,26 @@ après expansion de glob ou substitution de variable.
 ### Parsing
 
 - Tokenisation via `shell-words` (quotes `"..."` / `'...'` style bash), puis
-  interprétation **maison et cadrée** des seuls opérateurs autorisés (`&&`,
-  globs `wax`, variables déclarées). Aucun appel à `sh -c` / `bash -c` pour
-  les commandes whitelistées.
+  interprétation **maison et cadrée** des seuls opérateurs autorisés (`&&`/`;`,
+  pipes, globs `wax`, variables déclarées, redirections). Aucun appel à
+  `sh -c` / `bash -c` pour les commandes whitelistées.
+
+### Boucle de validation (unique point de passage)
+
+Toute commande, **avant exécution**, passe par une boucle de validation unique :
+1. parsing → arbre de commandes (whitelist ou trusted) ;
+2. expansion des variables déclarées et des globs (chaque résultat revalidé) ;
+3. chaque chemin (source ou destination de redirection) → `resolve()` +
+   test fichiers sensibles + bornes de taille ;
+4. exécution uniquement si tout est vert, avec timeout.
+
+### Deux canaux de sortie distincts
+
+- **JSON** (`{ok, code, stdout, stderr, truncated}`) : uniquement vers l'extérieur,
+  c'est-à-dire vers le harness (stdout du process).
+- **Flux brut** (stdout/stdin internes) : uniquement entre commandes chaînées
+  (pipes, redirections internes). Le stdin du process appartient au protocole
+  JSON et n'est jamais lu par une commande.
 
 ## Commandes trusted
 
