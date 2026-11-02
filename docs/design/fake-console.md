@@ -24,7 +24,7 @@ utilisable par un agent sans risque de sortie de son périmètre.
 | Session de la console | ✅ décidé — **stateless** : chaque commande repart du root, pas de `cd` persistant en v1 |
 | Interface de la console | ✅ décidé — **sous-processus dédié**, protocole ligne par ligne sur stdin/stdout : une commande en entrée, un résultat en sortie. Isolation par processus : un crash de la console (ex. lecture d'un très gros fichier) ne fait pas planter le harness |
 | Confinement | ✅ décidé — **v1 : logique pur Rust** (`resolve()` + canonicalize + tests d'évasion en CI), marche partout sans privilèges. **v2 (déploiement remote) : user namespace non privilégié + chroot** par-dessus (defense in depth, le noyau bloque même en cas de bug). Jamais de root global au lancement de l'agent. L'API reste identique, seul le lanceur change |
-| Format des sorties et erreurs (texte brut vs JSON, codes de sortie) | ⏳ à trancher |
+| Format des sorties/erreurs | ✅ décidé — **JSON structuré** : chaque réponse est un objet `{ok, code, stdout, stderr}`. Séparation explicite entre métadonnées (succès/échec) et contenu, moins de risque d'injection dans l'interprétation |
 
 ## Modèle de sécurité
 

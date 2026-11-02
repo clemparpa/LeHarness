@@ -2,8 +2,9 @@
 
 ## ⏳ À trancher (décisions en attente)
 
-- [ ] **Format des sorties/erreurs** : texte brut ou structuré (JSON) ? code de
-      sortie façon shell en cas d'échec ?
+- [x] Format des sorties : **JSON structuré** `{ok, code, stdout, stderr}` entre
+      console et harness (séparation métadonnées/contenu, parsing fiable). Le harness
+      peut présenter le `stdout` brut à l'agent
 
 ## ✅ Décidés
 
