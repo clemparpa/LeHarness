@@ -64,13 +64,18 @@ Candidats à évaluer (que du Rust/Zig, pas de C++/Swift) :
 Jamais de `docker` / socket docker.sock (équivalent root hôte). Pistes notées,
 le choix sera fait en temps voulu :
 
-- **Podman rootless (daemonless)** : pas de démon, pas de socket à protéger ;
-  chaque `podman run` est un sous-processus spawn/kill par la console, avec
-  `--network none`, rlimits, `--read-only`, allowlist d'images gérée côté console
-  (jamais de pull arbitraire). Base portable et sûre pour la plupart des cas.
+- **Podman rootless (daemonless)** — piste privilégiée pour la v1 : pas de démon,
+  pas de socket à protéger (contrairement à dockerd) ; chaque `podman run` est un
+  sous-processus spawn/kill par la console, avec `--network none`, rlimits,
+  `--read-only`, allowlist d'images gérée côté console (jamais de pull arbitraire).
+  Plus haut niveau et plus simple à utiliser que les runtimes bruts.
 - **Runtimes OCI one-shot (pas de démon)** : [runc](https://github.com/opencontainers/runc),
   [crun](https://github.com/containers/crun), [youki](https://github.com/containers/youki)
-  (en Rust) — invoqués directement, un process par conteneur.
+  (en Rust). Invoqués directement, un process par conteneur. **crun** : écrit en C,
+  démarrage 2-3x plus rapide que runc, faible empreinte, runtime par défaut de
+  podman — mais CLI bas niveau : il faut construire soi-même le bundle OCI
+  (`config.json` + rootfs), ce qui donne un contrôle total et une surface minimale.
+  Piste pour quand on voudra orchestrer nous-mêmes ; podman reste plus simple en v1.
 - **Couche forte en v2 (defense in depth, déploiement remote)** : micro-VM
   [Firecracker](https://firecracker-microvm.github.io/) / Kata, ou
   [gVisor](https://gvisor.dev/) (runtime OCI `runsc`, interception des appels
