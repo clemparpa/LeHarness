@@ -59,6 +59,28 @@ Candidats à évaluer (que du Rust/Zig, pas de C++/Swift) :
 - [ ] Choix du moteur à trancher plus tard après évaluation concrète (stabilité, couverture sites modernes)
 - [ ] Quel que soit le moteur : process/conteneur isolé, réseau restreint à localhost, rlimits stricts, sorties (screenshots/DOM) passent par `resolve()` + bornes
 
+## Conteneurs (hors la-console — à trancher plus tard)
+
+Jamais de `docker` / socket docker.sock (équivalent root hôte). Pistes notées,
+le choix sera fait en temps voulu :
+
+- **Podman rootless (daemonless)** : pas de démon, pas de socket à protéger ;
+  chaque `podman run` est un sous-processus spawn/kill par la console, avec
+  `--network none`, rlimits, `--read-only`, allowlist d'images gérée côté console
+  (jamais de pull arbitraire). Base portable et sûre pour la plupart des cas.
+- **Runtimes OCI one-shot (pas de démon)** : [runc](https://github.com/opencontainers/runc),
+  [crun](https://github.com/containers/crun), [youki](https://github.com/containers/youki)
+  (en Rust) — invoqués directement, un process par conteneur.
+- **Couche forte en v2 (defense in depth, déploiement remote)** : micro-VM
+  [Firecracker](https://firecracker-microvm.github.io/) / Kata, ou
+  [gVisor](https://gvisor.dev/) (runtime OCI `runsc`, interception des appels
+  système, portable sans KVM). Pour contrer une 0-day noyau dans un conteneur.
+
+Règles quel que soit le choix : allowlist d'images déclarée par l'humain,
+réseau none/localhost par défaut, aucun montage de volume du host (ou répertoire
+validé via `resolve()` uniquement), rlimits stricts, timeout, kill systématique,
+sorties bornées + masquées.
+
 ## Harness (brique suivante)
 
 - [x] **Hooks de session** (décidé en principe) : le harness expose des hooks
