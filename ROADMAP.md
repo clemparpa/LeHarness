@@ -17,8 +17,9 @@
 - CI GitHub Actions (gate PR) : `cargo fmt --check`, `clippy -D warnings`, `cargo test`, matrice ubuntu + macOS, `cargo deny` + `cargo audit`, garde-fou anti-fork sur les jobs.
 - **Testable** : une PR qui merge avec CI verte sur un code minimal (un test bidon suffit).
 
-## Étape 1 — Cœur : session + hooks
+## Étape 1 — Cœur : session + hooks 🚧 (cette PR)
 
+- Spec : [spec/steps/01-session-hooks.md](spec/steps/01-session-hooks.md)
 - `session.rs` : `Session` (id, root du repo, état) + cycle de vie avec hooks `on_start` / `on_checkpoint` / `on_end` / `on_resume`.
 - La persistance est un **trait injecté** par la couche au-dessus : le cœur n'écrit jamais sur disque lui-même.
 - **Testable** : tests unitaires du cycle de vie avec un double de test (persistance en mémoire).
