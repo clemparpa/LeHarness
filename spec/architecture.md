@@ -1,84 +1,59 @@
-# Architecture de la-console
+# Architecture du harness
 
-La console n'est pas « une boucle qui exécute des commandes » : c'est un
-**pipeline de validation composable**, appliqué à trois niveaux imbriqués.
-Toute donnée (commande, chemin, sortie) passe par les mêmes gardes, quel que
-soit le niveau auquel elle se trouve.
+Le harness n'est pas « une boucle qui exécute des commandes » : c'est un **cœur
+de session** entouré de couches de transport optionnelles. La console
+(`la-console`, repo séparé) n'est qu'un outil parmi d'autres, branché comme
+binaire externe.
 
-## Vue d'ensemble
+## Vue d'ensemble (diagramme)
 
 ```mermaid
 flowchart TD
-    A[ligne JSON {op: exec, cmd}] --> P[1. VALIDATION ENTRÉE<br/>parse shell-words<br/>expansion variables/globs]
-    P --> V[2. BOUCLE DE VALIDATION CHEMINS<br/>resolve() + sensibles + bornes<br/>pour chaque chemin impliqué]
-    V -->|ok| X[exécution avec timeout]
-    V -->|denied| R1[réponse JSON erreur]
-    X --> S[3. VALIDATION SORTIE<br/>troncature, masquage secrets, formatage]
-    S -->|flux interne pipe/redirection| X2[commande suivante de la chaîne]
-    S -->|sortie finale| R2[réponse JSON {ok, code, stdout, stderr}]
+    T1[CLI local] --> H
+    T2[ACP - éditeur] --> H
+    T3[Orchestrateur GitHub App] --> H
+    H[harness - coeur de session<br/>hooks: start / checkpoint / end / resume] --> S[SecretStore<br/>secrets en memoire, masquage ***]
+    H --> P[Persistance<br/>trait injecte par la couche appelante]
+    H --> L[Lanceur de sous-processus<br/>protocole ligne JSON, timeout, kill]
+    L --> O1[outil externe<br/>ex. la-console]
+    L --> O2[autre outil...]
 ```
 
-## Les trois niveaux de validation
+## Le cœur (maison)
 
-### Niveau 1 — Validation de l'entrée (la commande elle-même)
+### Session + hooks
 
-- Tokenisation (`shell-words`), puis interprétation cadrée des opérateurs
-  autorisés (`&&`/`;`, pipes, redirections, globs `wax`, variables déclarées).
-- Résultat : un **arbre de commandes** (pas une chaîne) — chaque nœud est une
-  commande whitelist ou trusted ; chaque branche passe ensuite individuellement
-  par les niveaux 2 et 3.
+- `Session` : id, root du repo de l'agent, état courant.
+- Cycle de vie émis via des hooks : `on_start`, `on_checkpoint`, `on_end`,
+  `on_resume`.
+- La **persistance est un trait injecté** par la couche appelante (CLI local,
+  orchestrateur) : le cœur n'ouvre jamais de fichier lui-même.
 
-### Niveau 2 — Boucle de validation des chemins (composable)
+### SecretStore
 
-La boucle centrale, appliquée **à chaque chemin de chaque nœud de l'arbre** :
+- Secrets chargés au lancement (env ou fichier de config local), gardés **en
+  mémoire uniquement**, avec refresh automatique quand ils expirent.
+- Toute sortie transmise à l'extérieur passe par le masquage (`***`).
 
-1. `resolve(root, input)` → confinement (canonicalize, `..`, symlinks) ;
-2. test fichiers sensibles (regex sur le chemin relatif) ;
-3. bornes (taille lecture/écriture, nb de matchs de glob, quota root).
+### Lanceur de sous-processus
 
-C'est la même boucle pour un `cat`, une destination de `>`, un glob expansé,
-un argument de commande trusted. Aucune exception.
+- Spawn d'un binaire externe, protocole **une ligne JSON en entrée, une ligne
+  JSON en sortie**, timeout, kill propre du fils à la fin.
+- Réponses mal formées = rejet fail-closed.
+- Le stdin/stdout du fils appartiennent au protocole ; les secrets ne sont
+  **jamais** passés par env ou argv.
 
-### Niveau 3 — Validation de la sortie
+## Couches de transport optionnelles
 
-Avant qu'une sortie ne quitte la console (ou ne parte dans un pipe) :
+Aucune n'est obligatoire ; le cœur fonctionne sans.
 
-- troncature à `max_output_bytes` (début + fin, flag `truncated`) ;
-- masquage des secrets connus (ex. token → `***`) ;
-- formatage : **flux brut** entre commandes internes (pipes/redirections),
-  **JSON `{ok, code, stdout, stderr}`** uniquement vers l'appelant.
-
-## Composition
-
-- `a && b` : deux nœuds, chacun passe par les 3 niveaux ; stop au 1er échec.
-- `a | b` : la sortie validée (niveau 3, flux brut) de `a` devient l'entrée de
-  `b` ; `b` repasse par les 3 niveaux. Whitelist uniquement, jamais trusted.
-- `a > f` : `f` est validé par la boucle niveau 2 **avant** l'exécution de `a` ;
-  la sortie écrite est aussi bornée.
-
-## Interface d'écriture unique (Sink)
-
-Pour éviter toute faille, **toute écriture passe par une seule interface**
-(abstraction `Sink` en Rust, ex. trait avec `write(bytes) -> Result<usize>`).
-Il existe exactement trois implémentations, et aucun autre code ne doit écrire
-directement :
-
-| Sink | Destination | Validations appliquées |
+| Couche | Rôle | Tech |
 |---|---|---|
-| `FileSink` | fichier dans le root (redirections `>`/`>>`) | niveau 2 (resolve + sensibles + bornes + quota) **avant ouverture**, puis masquage secrets + borne de taille pendant l'écriture |
-| `CallerSink` | réponse JSON vers l'appelant (stdout du processus) | niveau 3 (troncature, masquage secrets) |
-| `PipeSink` | flux brut vers la commande suivante (pipe interne) | troncature uniquement, pas de masquage (flux interne) |
+| CLI local | `le-harness run --repo <chemin>`, boucle interactive | clap |
+| ACP | piloté comme agent depuis un éditeur (Zed...) | crate officielle `agent-client-protocol`, rôle `Agent` |
+| Orchestrateur GitHub App | webhooks, jobs éphémères (remote) | reqwest + rustls côté harness |
 
-Règles :
+## Règle d'indépendance
 
-- `FileSink` ouvre le fichier **uniquement après** validation complète du chemin
-  (resolve + sensibles + bornes) — jamais l'inverse ;
-- le masquage des secrets est appliqué dans `FileSink` et `CallerSink`, jamais
-  dans `PipeSink` ;
-- aucune commande (whitelist ou trusted) n'a le droit d'ouvrir un fichier en
-  écriture directement : tout passe par `Sink`.
-
-## Règle d'or
-
-> Toute donnée qui entre, touche au disque, ou sort passe par une validation
-> explicite. Il n'y a pas de « chemin rapide ».
+> Aucun `use la_console` nulle part. La console est invoquée comme **binaire
+> externe** via le lanceur générique, jamais comme dépendance de code.
