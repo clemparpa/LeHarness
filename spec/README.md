@@ -1,39 +1,37 @@
-# Spécification de la-console
+# Spécification de LeHarness
 
-**la-console** est une fausse console : un programme volontairement très limité
-et très sûr, destiné à être piloté par un agent (IA) sans risque de sortie de
-son périmètre. L'agent envoie des commandes en texte, la console répond en JSON.
+**LeHarness** est un harness d'agents IA écrit en Rust : il pilote des sessions
+d'agent, détient les secrets en mémoire, et lance des outils externes en
+sous-processus confinés. Il tourne **en local** (repo local) comme **en remote**
+(piloté par un orchestrateur GitHub App).
 
-Ce dossier est la spécification complète et autonome du projet : il peut être
-copié tel quel dans le dépôt public du projet.
+Il est **entièrement indépendant de la-console** : la console (repo séparé
+`clemparpa/LaConsole`) n'est qu'un outil optionnel branché comme binaire externe.
 
 ## Objectifs
 
-1. **Périmètre absolu** : tout accès fichier est confiné sous un `root` donné.
-   Aucune commande ne doit pouvoir lire/écrire hors de ce root, par quelque moyen
-   que ce soit (`..`, symlinks, chemins absolus, encodages, etc.).
-2. **Opérations limitées** : seules quelques commandes whitelistées sont
-   disponibles, plus des commandes « trusted » définies et validées par un humain.
-3. **Fail-closed** : au doute, refuser. Aucun « chemin rapide ».
+1. **Sessions fiables** : cycle de vie explicite (démarrage / checkpoint / fin /
+   reprise) via des hooks, persistance déléguée à la couche appelante.
+2. **Secrets jamais exposés** : en mémoire côté harness uniquement, jamais sur
+   disque, jamais dans l'env/argv des sous-processus, masqués dans les sorties.
+3. **Outils en sous-processus** : protocole ligne JSON par ligne, timeout, kill
+   propre, fail-closed.
+4. **Fail-closed** : au doute, refuser. Aucun « chemin rapide ».
 
 ## Principes directeurs
 
-- La console n'est pas « une boucle qui exécute des commandes » : c'est un
-  **pipeline de validation composable** appliqué à trois niveaux (entrée,
-  chemins, sortie).
-- Toute donnée qui entre, touche au disque, ou sort passe par une validation
-  explicite.
-- Aucun `unsafe` en v1.
-- Pas de dépendance réseau dans la console.
-- Une seule fonction de résolution de chemins, testée agressivement.
+- Cœur sécurité écrit **maison**, volontairement (pas de framework d'agents).
+- Aucun `unsafe` en v1 (`#![forbid(unsafe_code)]`).
+- Une étape de la roadmap = une PR indépendante, testable, CI verte avant merge.
+- Itération par étape : chaque étape a sa spec dédiée dans `spec/steps/NN-*.md`,
+  référencée depuis `ROADMAP.md`.
 
 ## Sommaire
 
 | Document | Contenu |
 |---|---|
-| [protocol.md](protocol.md) | Interface externe : CLI, protocole ligne par ligne stdin/stdout, format JSON des réponses |
-| [architecture.md](architecture.md) | Pipeline de validation à 3 niveaux, interface d'écriture unique (Sink) |
-| [commands.md](commands.md) | Whitelist des commandes, commandes trusted, règles de parsing |
-| [security.md](security.md) | Modèle de menaces, confinement (`resolve()`), fichiers sensibles, masquage des secrets, vecteurs d'évasion |
-| [testing.md](testing.md) | Stratégie de test et outillage : fmt, clippy, tests unitaires, proptest, e2e, fuzzing, mutation testing, CI |
+| [architecture.md](architecture.md) | Cœur du harness : session + hooks, secrets, lanceur de sous-processus, couches de transport optionnelles |
+| [security.md](security.md) | Modèle de menaces, règles des secrets, sous-processus, local vs remote |
+| [testing.md](testing.md) | Stratégie de test reprise de la-console : TDD, proptest, e2e, fuzz, mutants, CI |
 | [structure.md](structure.md) | Structure du dépôt et dépendances figées |
+| [steps/](steps/README.md) | Spec détaillée de chaque étape de la roadmap |

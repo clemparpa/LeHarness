@@ -1,5 +1,8 @@
 # Backlog d'idées — à discuter
 
+> Note : la spécification de la-console vit dans le repo `clemparpa/LaConsole`
+> (dossier `spec/`), pas ici. Ce dépôt ne contient que la doc du harness.
+
 ## ⏳ À trancher (décisions en attente)
 
 - [x] **Passage des secrets (GitHub App token) — ✅ décidé (option A)** : le token
@@ -86,15 +89,20 @@ réseau none/localhost par défaut, aucun montage de volume du host (ou réperto
 validé via `resolve()` uniquement), rlimits stricts, timeout, kill systématique,
 sorties bornées + masquées.
 
-## Harness (brique suivante)
+## Harness (cœur — en cours, voir ROADMAP.md)
 
-- [x] **Hooks de session** (décidé en principe) : le harness expose des hooks
+- [x] **Hooks de session** (décidé) : le harness expose des hooks
       (démarrage / checkpoint / fin / reprise de session) ; la persistance elle-même
       (DB managée, stockage du root, verrou anti-parallèle) est gérée par la couche
       au-dessus (orchestrateur GitHub App, jobs éphémères), pas par le harness
-
-- [ ] Comment la console s'intègre au harness : subprocess ? canal de
-      communication (stdin/stdout, socket locale, fichiers) ?
+- [x] **Indépendance harness / console** (décidé) : deux repos séparés, aucune
+      dépendance de code ; la console n'est qu'un outil optionnel branché comme
+      binaire externe (étape 7 de `ROADMAP.md`)
+- [x] **Intégration console → harness** (décidé) : via le lanceur générique de
+      sous-processus du harness (protocole ligne JSON sur stdin/stdout, étape 3),
+      jamais en librairie dans le processus du harness
+- [x] **Local-first** (décidé) : le harness tourne en local sur un repo local ;
+      le mode GitHub App remote s'ajoute par-dessus sans toucher au cœur
 
 ## Process
 
