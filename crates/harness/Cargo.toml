@@ -1,0 +1,13 @@
+[package]
+name = "harness"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "AI agent harness: sessions with hooks, in-memory secrets, confined subprocess tools"
+
+[[bin]]
+name = "le-harness"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

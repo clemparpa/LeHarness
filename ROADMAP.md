@@ -10,7 +10,7 @@
 - **Local-first** : le harness tourne en local sur un repo local ; le mode GitHub App remote (étape 8) s'ajoute par-dessus sans toucher au cœur.
 - Sur le dépôt public : workflows de PR de forks bloqués (garde-fou `if:` dans la CI) — jamais de jobs coûteux exposés aux forks.
 
-## Étape 0 — Squelette + arsenal (fondation) 🚧 (cette branche : doc uniquement, code en PR suivante)
+## Étape 0 — Squelette + arsenal (fondation) ✅
 
 - Workspace conforme à `spec/structure.md` : `Cargo.toml` virtuel, `crates/harness` (binaire + lib), `lib.rs` avec `#![forbid(unsafe_code)]`, `main.rs` avec CLI clap minimale.
 - Fichiers de config : `rustfmt.toml`, `deny.toml`, `.gitignore` (incl. `mutants.out/`, artifacts fuzz).
