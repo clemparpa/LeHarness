@@ -14,9 +14,14 @@ persistance **injectée par trait** : le cœur n'ouvre jamais de fichier lui-mê
   `checkpoint()`, `end()`, `Session::resume(id, root, hooks, store)`.
 - Trait `Hooks` : `on_start` / `on_checkpoint` / `on_end` / `on_resume`, chacun
   recevant `&Snapshot` (impls par défaut vides).
-- Trait `Persistence` injecté par la couche appelante :
-  `save(&Snapshot) -> Result<(), PersistenceError>` et
-  `load(&SessionId) -> Result<Option<Snapshot>, PersistenceError>`.
+- Trait `Persistence` injecté par la couche appelante, **indépendant du backend**
+  (fichiers JSON — étape 5, `redb`, Postgres, …) :
+  `save(&self, &Snapshot) -> Result<(), PersistenceError>` et
+  `load(&self, &SessionId) -> Result<Option<Snapshot>, PersistenceError>`.
+  Contrat : `save` fait l'*upsert* du dernier snapshot d'une session (clé = `Snapshot::id`) ;
+  `load` renvoie le snapshot le plus récent pour cet id, ou `None`.
+  Méthodes en `&self` pour s'adapter aux pools de connexions (style sqlx) ;
+  v1 synchrone de bout en bout (position « rester synchrone » reprise de la-console).
 - Machine à états fail-closed : `checkpoint`/`end` sur session terminée = erreur ;
   `resume` d'un id inconnu = `NotFound` ; `resume` d'une session terminée =
   `AlreadyEnded` ; `resume` avec une racine différente de celle persistée =

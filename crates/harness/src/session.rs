@@ -58,8 +58,8 @@ pub enum PersistenceError {
 }
 
 pub trait Persistence {
-    fn save(&mut self, snapshot: &Snapshot) -> Result<(), PersistenceError>;
-    fn load(&mut self, id: &SessionId) -> Result<Option<Snapshot>, PersistenceError>;
+    fn save(&self, snapshot: &Snapshot) -> Result<(), PersistenceError>;
+    fn load(&self, id: &SessionId) -> Result<Option<Snapshot>, PersistenceError>;
 }
 
 #[derive(Debug, Error)]
@@ -118,7 +118,7 @@ impl Session {
         hooks: impl Hooks + 'static,
         store: impl Persistence + 'static,
     ) -> Result<Self, SessionError> {
-        let mut store = Box::new(store);
+        let store = Box::new(store);
         let mut hooks = Box::new(hooks);
         let mut snapshot = store
             .load(&id)?
@@ -190,38 +190,38 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::rc::Rc;
 
     type SharedLog<T> = Rc<RefCell<Vec<T>>>;
 
     struct MemoryStore {
         saved: SharedLog<Snapshot>,
-        fail_on_save: bool,
-        fail_on_load: bool,
+        fail_on_save: Cell<bool>,
+        fail_on_load: Cell<bool>,
     }
 
     impl MemoryStore {
         fn new(saved: SharedLog<Snapshot>) -> Self {
             Self {
                 saved,
-                fail_on_save: false,
-                fail_on_load: false,
+                fail_on_save: Cell::new(false),
+                fail_on_load: Cell::new(false),
             }
         }
     }
 
     impl Persistence for MemoryStore {
-        fn save(&mut self, snapshot: &Snapshot) -> Result<(), PersistenceError> {
-            if self.fail_on_save {
+        fn save(&self, snapshot: &Snapshot) -> Result<(), PersistenceError> {
+            if self.fail_on_save.get() {
                 return Err(PersistenceError::Backend("save failed".into()));
             }
             self.saved.borrow_mut().push(snapshot.clone());
             Ok(())
         }
 
-        fn load(&mut self, id: &SessionId) -> Result<Option<Snapshot>, PersistenceError> {
-            if self.fail_on_load {
+        fn load(&self, id: &SessionId) -> Result<Option<Snapshot>, PersistenceError> {
+            if self.fail_on_load.get() {
                 return Err(PersistenceError::Backend("load failed".into()));
             }
             Ok(self
@@ -299,8 +299,8 @@ mod tests {
     #[test]
     fn start_failure_on_save_blocks_session_and_emits_no_hook() {
         let (saved, events) = fixtures();
-        let mut store = MemoryStore::new(saved);
-        store.fail_on_save = true;
+        let store = MemoryStore::new(saved);
+        store.fail_on_save.set(true);
         let result = Session::start(
             SessionId::generate(),
             root(),
@@ -471,8 +471,8 @@ mod tests {
     #[test]
     fn load_failure_is_fail_closed() {
         let (saved, events) = fixtures();
-        let mut store = MemoryStore::new(saved);
-        store.fail_on_load = true;
+        let store = MemoryStore::new(saved);
+        store.fail_on_load.set(true);
         let result = Session::resume(
             SessionId::generate(),
             root(),
