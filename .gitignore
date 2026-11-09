@@ -13,6 +13,10 @@ target
 # Contains mutation testing data
 **/mutants.out*/
 
+# cargo-fuzz local outputs (seeds in fuzz/corpus/ are committed, artifacts are not)
+fuzz/target/
+fuzz/artifacts/
+
 # rustc will dump stack traces when hitting an internal compiler error to PWD
 rustc-ice-*.txt
 
