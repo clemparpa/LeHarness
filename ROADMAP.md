@@ -24,7 +24,9 @@
 - La persistance est un **trait injecté** par la couche au-dessus : le cœur n'écrit jamais sur disque lui-même.
 - **Testable** : tests unitaires du cycle de vie avec un double de test (persistance en mémoire).
 
-## Étape 2 — Gestion des secrets (maison)
+## Étape 2 — Gestion des secrets (maison) 🚧 (cette PR)
+
+- Spec : [spec/steps/02-secrets.md](spec/steps/02-secrets.md)
 
 - `secrets.rs` : `SecretStore` en mémoire uniquement. Chargement au lancement (variable d'env ou fichier de config local du user), refresh automatique (ex. token GitHub App, validité 1 h).
 - Règles absolues : jamais écrite sur disque, jamais dans l'env ou l'argv des sous-processus lancés, masquage `***` de toute occurrence dans toute sortie transmise à l'extérieur.
