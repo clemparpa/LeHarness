@@ -83,10 +83,10 @@ jobs:
         run: |
           set -euo pipefail
           base="https://github.com/suzuki-shunsuke/pinact/releases/download/${PINACT_VERSION}"
-          curl -fsSLo pinact.tar.gz "${base}/pinact_linux_amd64.tar.gz"
+          curl -fsSLo pinact_linux_amd64.tar.gz "${base}/pinact_linux_amd64.tar.gz"
           curl -fsSLo checksums.txt "${base}/pinact_5.0.2_checksums.txt"
           grep "pinact_linux_amd64.tar.gz$" checksums.txt | sha256sum -c -
-          tar -xzf pinact.tar.gz pinact
+          tar -xzf pinact_linux_amd64.tar.gz pinact
           sudo install -m 0755 pinact /usr/local/bin/pinact
           pinact --version
       # --check: échoue si une action n'est pas épinglée par SHA complet.
