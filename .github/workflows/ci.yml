@@ -74,9 +74,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
-        with:
-          tool: pinact
+      # pinact est un binaire Go (pas un crate Rust) : taiki-e/install-action
+      # ne le connait pas et son fallback cargo-binstall echoue. On télécharge
+      # la release épinglée et on vérifie le sha256 avant usage.
+      - name: Install pinact v5.0.2 (checksum verified)
+        env:
+          PINACT_VERSION: v5.0.2
+        run: |
+          set -euo pipefail
+          base="https://github.com/suzuki-shunsuke/pinact/releases/download/${PINACT_VERSION}"
+          curl -fsSLo pinact.tar.gz "${base}/pinact_linux_amd64.tar.gz"
+          curl -fsSLo checksums.txt "${base}/pinact_5.0.2_checksums.txt"
+          grep "pinact_linux_amd64.tar.gz$" checksums.txt | sha256sum -c -
+          tar -xzf pinact.tar.gz pinact
+          sudo install -m 0755 pinact /usr/local/bin/pinact
+          pinact --version
       # --check: échoue si une action n'est pas épinglée par SHA complet.
       # min_age (7 jours, always: true dans .pinact.yaml) est vérifié aussi.
       - run: pinact run --check
