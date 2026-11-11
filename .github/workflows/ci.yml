@@ -67,3 +67,18 @@ jobs:
           tool: cargo-deny, cargo-audit
       - run: cargo deny check
       - run: cargo audit
+
+  pinact:
+    name: pinact (actions épinglées par SHA, min_age 7 jours)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: pinact
+      # --check: échoue si une action n'est pas épinglée par SHA complet.
+      # min_age (7 jours, always: true dans .pinact.yaml) est vérifié aussi.
+      - run: pinact run --check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
