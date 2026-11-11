@@ -1,9 +1,36 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^fuzz/corpus/
+      - id: end-of-file-fixer
+        exclude: ^fuzz/corpus/
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  # Le check pinact (actions épinglées par SHA, min_age 7 jours) vit
+  # uniquement en CI (job `pinact` dans .github/workflows/ci.yml).
   - repo: local
     hooks:
-      - id: pinact-check
-        name: pinact (actions épinglées par SHA complet)
-        entry: pinact run --fix=false --no-api
+      - id: cargo-fmt
+        name: cargo fmt --check
+        entry: cargo fmt --all -- --check
         language: system
-        files: ^\.github/(workflows|actions)/
+        files: \.(rs|toml)$
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo clippy -D warnings
+        entry: cargo clippy --workspace --all-targets -- -D warnings
+        language: system
+        files: \.(rs|toml)$
+        pass_filenames: false
+
+      - id: cargo-test
+        name: cargo test
+        entry: cargo test --workspace --all-targets
+        language: system
+        files: \.(rs|toml)$
         pass_filenames: false
