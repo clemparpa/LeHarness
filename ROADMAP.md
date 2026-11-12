@@ -39,8 +39,9 @@
 - Cibles de fuzz : parseur de lignes JSON + masqueur de secrets. Nightly : fuzz 30 min + `cargo mutants` (seuil ≥ 80 %) sur `secrets.rs` + `process.rs`.
 - **Testable** : e2e contre un binaire bidon de test committé (`CARGO_BIN_EXE_`-style).
 
-## Étape 4 — CLI local
+## Étape 4 — CLI local 🚧 (cette PR)
 
+- Spec : [spec/steps/04-cli-local.md](spec/steps/04-cli-local.md)
 - `le-harness run --repo <chemin>` : démarre une session sur un repo local, lit la politique du repo (`trusted.txt`, `sensitives.txt`), boucle interactive locale (stdin → session → outil).
 - **Testable** : e2e scripté.
 
