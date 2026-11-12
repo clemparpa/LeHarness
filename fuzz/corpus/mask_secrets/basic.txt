@@ -1,0 +1,2 @@
+s3cr3t-token
+output: s3cr3t-token leaked here

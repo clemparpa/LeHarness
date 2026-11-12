@@ -1,0 +1,70 @@
+name: Nightly
+
+# 'schedule' and 'workflow_dispatch' events can never originate from a fork
+# (scheduled runs execute on the repository's default branch), so unlike ci.yml
+# no anti-fork guard is needed here.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    name: fuzz ${{ matrix.target }} (30 min)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [parse_line, mask_secrets]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: nightly
+          components: rust-src
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-fuzz
+      # --target gnu (host) instead of the default musl: ASan (-Zsanitizer=address)
+      # is incompatible with musl's statically linked libc ("sanitizer is
+      # incompatible with statically linked libc").
+      # Corpus dir is cargo-fuzz's default (fuzz/corpus/<target>): the seed
+      # corpus is committed in the repo, so every run starts from realistic
+      # inputs. -max_len caps generated inputs at 4096 bytes (libFuzzer's
+      # default, made explicit): longer inputs only slow down each exec without
+      # reaching deeper parser code.
+      - name: Fuzz ${{ matrix.target }} for 30 min
+        working-directory: fuzz
+        run: cargo fuzz run ${{ matrix.target }} --target x86_64-unknown-linux-gnu -- -max_total_time=1800 -max_len=4096
+
+  mutants:
+    name: cargo mutants (score >= 80%)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-mutants
+      # cargo-mutants has no --minimum-mutant-score flag: accept exit codes 0, 2
+      # (mutants survived) and 3 (timeouts = mutants in infinite loops, counted
+      # as not caught) and enforce the score threshold ourselves from
+      # mutants.out/outcomes.json (MSI = caught / (total_mutants - unviable)).
+      - name: Mutation testing on secrets.rs + process.rs
+        run: |
+          rc=0
+          cargo mutants --file crates/harness/src/secrets.rs --file crates/harness/src/process.rs || rc=$?
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ] && [ "$rc" -ne 3 ]; then exit "$rc"; fi
+          score=$(jq -r '(.caught * 100) / (if (.total_mutants - .unviable) <= 0 then 1 else (.total_mutants - .unviable) end)' mutants.out/outcomes.json)
+          echo "Mutant score: ${score}% (threshold: 80%)"
+          jq -e --argjson min 80 '(.caught * 100) / (if (.total_mutants - .unviable) <= 0 then 1 else (.total_mutants - .unviable) end) >= $min' mutants.out/outcomes.json > /dev/null

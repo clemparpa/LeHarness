@@ -32,8 +32,9 @@
 - Règles absolues : jamais écrite sur disque, jamais dans l'env ou l'argv des sous-processus lancés, masquage `***` de toute occurrence dans toute sortie transmise à l'extérieur.
 - **Testable** : tests unitaires + proptest « un secret ne fuute jamais dans une sortie masquée ».
 
-## Étape 3 — Lanceur générique de sous-processus
+## Étape 3 — Lanceur générique de sous-processus 🚧 (cette PR)
 
+- Spec : [spec/steps/03-process.md](spec/steps/03-process.md)
 - `process.rs` : spawn d'un binaire externe avec protocole **ligne JSON par ligne** (générique — aucun lien avec la-console), timeout, kill propre du fils, rejet fail-closed des réponses mal formées.
 - Cibles de fuzz : parseur de lignes JSON + masqueur de secrets. Nightly : fuzz 30 min + `cargo mutants` (seuil ≥ 80 %) sur `secrets.rs` + `process.rs`.
 - **Testable** : e2e contre un binaire bidon de test committé (`CARGO_BIN_EXE_`-style).
