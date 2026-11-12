@@ -31,7 +31,7 @@ struct SecretEntry {
     expires_at: Option<SystemTime>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SecretStore {
     entries: HashMap<String, SecretEntry>,
 }
@@ -143,6 +143,15 @@ impl SecretStore {
             out = out.replace(v, MASK);
         }
         out
+    }
+
+    /// Returns true if `text` contains any known secret value (including
+    /// expired ones). Used by the subprocess launcher to fail-closed before
+    /// passing anything to a child process.
+    pub fn contains_value(&self, text: &str) -> bool {
+        self.entries
+            .values()
+            .any(|e| !e.value.is_empty() && text.contains(&e.value))
     }
 
     fn entry_expired(entry: &SecretEntry) -> bool {
@@ -294,6 +303,18 @@ mod tests {
     fn mask_without_secrets_returns_text_unchanged() {
         let store = SecretStore::new();
         assert_eq!(store.mask("rien a cacher"), "rien a cacher");
+    }
+
+    #[test]
+    fn contains_value_detects_known_secrets() {
+        let mut store = SecretStore::new();
+        store.insert("token", "s3cr3t", None);
+        store.insert("empty", "", None);
+        assert!(store.contains_value("leak: s3cr3t!"));
+        assert!(!store.contains_value("nothing here"));
+        assert!(!store.contains_value(""));
+        let empty_only = SecretStore::new();
+        assert!(!empty_only.contains_value("anything"));
     }
 
     proptest! {

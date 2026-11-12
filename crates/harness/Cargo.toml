@@ -9,8 +9,14 @@ description = "AI agent harness: sessions with hooks, in-memory secrets, confine
 name = "le-harness"
 path = "src/main.rs"
 
+[[bin]]
+name = "dummy-tool"
+path = "src/bin/dummy-tool.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 thiserror = "2"
 
 [dev-dependencies]
