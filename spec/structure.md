@@ -14,6 +14,8 @@ LeHarness/
         session.rs    # Session + hooks (on_start/on_checkpoint/on_end/on_resume)
         secrets.rs    # SecretStore : memoire uniquement, refresh, masquage ***
         process.rs    # lanceur generique de sous-processus (ligne JSON), timeout, kill
+        policy.rs     # politique du repo (trusted.txt / sensitives.txt), fail-closed
+        run.rs        # boucle CLI local interactive (run --repo), testable hors main
         bin/
           dummy-tool.rs  # binaire outil bidon pour les tests e2e (CARGO_BIN_EXE_dummy-tool)
       tests/

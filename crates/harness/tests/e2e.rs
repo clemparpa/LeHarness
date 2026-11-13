@@ -142,3 +142,115 @@ fn parse_line_is_exported_for_fuzzing() {
     let resp = parse_line(r#"{"ok":true,"code":0,"stdout":"x","stderr":""}"#).unwrap();
     assert_eq!(resp.stdout, "x");
 }
+
+// --- Step 4: local CLI (`le-harness run --repo ...`) ---
+
+fn harness_bin() -> &'static str {
+    env!("CARGO_BIN_EXE_le-harness")
+}
+
+fn repo_with_policy(dir: &tempfile::TempDir) -> std::path::PathBuf {
+    let root = dir.path().to_path_buf();
+    std::fs::write(root.join("trusted.txt"), "run-tests\n").unwrap();
+    std::fs::write(root.join("sensitives.txt"), ".*\\.pem\n").unwrap();
+    root
+}
+
+fn run_cli(args: &[&str], stdin_data: &str) -> std::process::Output {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(harness_bin())
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(stdin_data.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn cli_scripted_session_with_tool_and_masking() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo_with_policy(&dir);
+    let secrets = dir.path().join("secrets.env");
+    std::fs::write(&secrets, "token=s3cr3t-value\n").unwrap();
+    let tool = dummy_tool();
+    let root_arg = root.to_str().unwrap().to_string();
+    let secrets_arg = secrets.to_str().unwrap().to_string();
+    let output = run_cli(
+        &[
+            "run",
+            "--repo",
+            &root_arg,
+            "--tool",
+            tool,
+            "--secrets-file",
+            &secrets_arg,
+        ],
+        "checkpoint\necho hello world\nleak\nquit\n",
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("started on"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("1 trusted, 1 sensitive patterns"),
+        "stdout: {stdout}"
+    );
+    assert!(stdout.contains("checkpoint 1"), "stdout: {stdout}");
+    assert!(stdout.contains("hello world"), "stdout: {stdout}");
+    assert!(stdout.contains("the token is ***"), "stdout: {stdout}");
+    assert!(!stdout.contains("s3cr3t-value"), "stdout: {stdout}");
+    assert!(stdout.contains("ended"), "stdout: {stdout}");
+}
+
+#[test]
+fn cli_eof_ends_session_with_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo_with_policy(&dir);
+    let root_arg = root.to_str().unwrap().to_string();
+    let output = run_cli(&["run", "--repo", &root_arg], "checkpoint\n");
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("checkpoint 1"));
+    assert!(stdout.contains("ended"));
+}
+
+#[test]
+fn cli_without_tool_reports_error_and_continues() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo_with_policy(&dir);
+    let root_arg = root.to_str().unwrap().to_string();
+    let output = run_cli(&["run", "--repo", &root_arg], "echo hi\nquit\n");
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.contains("error: no tool configured"),
+        "stdout: {stdout}"
+    );
+}
+
+#[test]
+fn cli_missing_policy_exits_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let root_arg = dir.path().to_str().unwrap().to_string();
+    let output = run_cli(&["run", "--repo", &root_arg], "");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("trusted.txt"), "stderr: {stderr}");
+}
+
+#[test]
+fn cli_missing_repo_exits_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let root_arg = dir.path().join("nope").to_str().unwrap().to_string();
+    let output = run_cli(&["run", "--repo", &root_arg], "");
+    assert_eq!(output.status.code(), Some(2));
+}
