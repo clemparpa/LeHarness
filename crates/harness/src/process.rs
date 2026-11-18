@@ -24,7 +24,8 @@ pub const MAX_LINE_BYTES: usize = 1024 * 1024;
 /// process. Anything else is stripped (`env_clear` before applying this list).
 pub const DEFAULT_ENV_ALLOWLIST: &[&str] = &["PATH", "HOME", "LANG", "TERM", "TMPDIR"];
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ToolRequest {
     pub id: u64,
     pub input: String,
@@ -69,25 +70,77 @@ pub fn parse_line(line: &str) -> Result<ToolResponse, ProcessError> {
     serde_json::from_str(line).map_err(|e| ProcessError::Malformed(e.to_string()))
 }
 
-/// A spawned tool process with a dedicated stdout reader thread.
-pub struct Tool {
+/// A spawned child process with piped stdin/stdout and a dedicated stdout
+/// reader thread pushing lines into `rx`. This is the reusable primitive of
+/// the launcher: `Tool` wraps it for synchronous call/response, the
+/// multi-session orchestrator (step 8) drives it with separate send/recv.
+pub struct PipedChild {
     child: Child,
     stdin: ChildStdin,
-    rx: Receiver<Result<String, ProcessError>>,
-    secrets: Arc<SecretStore>,
+    rx: Option<Receiver<Result<String, ProcessError>>>,
 }
 
-impl Tool {
-    /// Spawns `binary` with `args`, stdin/stdout piped. The child's environment
-    /// is rebuilt from `env_allowlist` only (`env_clear` first). Fail-closed:
-    /// if any known secret value appears in the binary path, the args, or a
-    /// passed env value, `SecretLeak` is returned and nothing is spawned.
-    pub fn spawn(
-        binary: impl AsRef<Path>,
-        args: &[String],
-        secrets: &SecretStore,
-        env_allowlist: &[&str],
-    ) -> Result<Self, ProcessError> {
+impl PipedChild {
+    /// Writes one protocol line followed by `\n` and flushes.
+    pub fn write_line(&mut self, line: &str) -> Result<(), ProcessError> {
+        self.stdin.write_all(line.as_bytes())?;
+        self.stdin.write_all(b"\n")?;
+        self.stdin.flush()?;
+        Ok(())
+    }
+
+    /// Waits up to `timeout` for the next stdout line (or reader error).
+    pub fn recv(
+        &self,
+        timeout: Duration,
+    ) -> Result<Result<String, ProcessError>, RecvTimeoutError> {
+        self.rx
+            .as_ref()
+            .expect("reader half already taken")
+            .recv_timeout(timeout)
+    }
+
+    /// Hands the stdout reader half over (e.g. to a dedicated reader thread);
+    /// can be called once.
+    pub fn take_rx(&mut self) -> Receiver<Result<String, ProcessError>> {
+        self.rx.take().expect("reader half already taken")
+    }
+
+    /// OS pid of the child.
+    pub fn child_id(&self) -> u32 {
+        self.child.id()
+    }
+
+    /// True while the child process is still running.
+    pub fn is_alive(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(None))
+    }
+
+    /// Kills and reaps the child if still running.
+    pub fn kill(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+impl Drop for PipedChild {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
+/// Spawns `binary` with `args`, stdin/stdout piped, and starts the dedicated
+/// stdout reader thread. The child's environment is rebuilt from
+/// `env_allowlist` only (`env_clear` first). Fail-closed: if any known secret
+/// value appears in the binary path, the args, or a passed env value,
+/// `SecretLeak` is returned and nothing is spawned.
+pub fn spawn_piped(
+    binary: impl AsRef<Path>,
+    args: &[String],
+    secrets: &SecretStore,
+    env_allowlist: &[&str],
+) -> Result<PipedChild, ProcessError> {
+    {
         let binary = binary.as_ref();
         let binary_str = binary.to_string_lossy().into_owned();
         let mut env_pairs: Vec<(String, String)> = Vec::new();
@@ -151,10 +204,32 @@ impl Tool {
                 }
             }
         });
-        Ok(Self {
+        Ok(PipedChild {
             child,
             stdin,
-            rx,
+            rx: Some(rx),
+        })
+    }
+}
+
+/// A spawned tool process used synchronously: one request line in, one
+/// masked response line out.
+pub struct Tool {
+    inner: PipedChild,
+    secrets: Arc<SecretStore>,
+}
+
+impl Tool {
+    /// Spawns the tool binary; see [`spawn_piped`].
+    pub fn spawn(
+        binary: impl AsRef<Path>,
+        args: &[String],
+        secrets: &SecretStore,
+        env_allowlist: &[&str],
+    ) -> Result<Self, ProcessError> {
+        let inner = spawn_piped(binary, args, secrets, env_allowlist)?;
+        Ok(Self {
+            inner,
             secrets: Arc::new(secrets.clone()),
         })
     }
@@ -172,17 +247,15 @@ impl Tool {
         if self.secrets.contains_value(&line) {
             return Err(ProcessError::SecretLeak);
         }
-        self.stdin.write_all(line.as_bytes())?;
-        self.stdin.write_all(b"\n")?;
-        self.stdin.flush()?;
-        let raw = match self.rx.recv_timeout(timeout) {
+        self.inner.write_line(&line)?;
+        let raw = match self.inner.recv(timeout) {
             Ok(Ok(line)) => line,
             Ok(Err(e)) => {
-                self.kill_child();
+                self.inner.kill();
                 return Err(e);
             }
             Err(RecvTimeoutError::Timeout) => {
-                self.kill_child();
+                self.inner.kill();
                 return Err(ProcessError::Timeout(timeout));
             }
             Err(RecvTimeoutError::Disconnected) => return Err(ProcessError::Closed),
@@ -194,7 +267,7 @@ impl Tool {
                 Ok(resp)
             }
             Err(e) => {
-                self.kill_child();
+                self.inner.kill();
                 Err(e)
             }
         }
@@ -202,18 +275,13 @@ impl Tool {
 
     /// True while the child process is still running.
     pub fn is_alive(&mut self) -> bool {
-        matches!(self.child.try_wait(), Ok(None))
-    }
-
-    fn kill_child(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        self.inner.is_alive()
     }
 }
 
 impl Drop for Tool {
     fn drop(&mut self) {
-        self.kill_child();
+        self.inner.kill();
     }
 }
 

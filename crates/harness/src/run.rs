@@ -15,7 +15,7 @@ use thiserror::Error;
 
 use crate::persistence::FilePersistence;
 use crate::policy::{PolicyError, RepoPolicy, SENSITIVES_FILE, TRUSTED_FILE};
-use crate::process::{Tool, ToolRequest, DEFAULT_ENV_ALLOWLIST};
+use crate::process::{Tool, ToolRequest, ToolResponse, DEFAULT_ENV_ALLOWLIST};
 use crate::secrets::{SecretError, SecretStore};
 use crate::session::{PersistenceError, Session, SessionError, SessionId};
 
@@ -29,6 +29,10 @@ pub struct RunConfig {
     pub tool_timeout: Duration,
     pub state_dir: Option<PathBuf>,
     pub resume: Option<SessionId>,
+    /// Line-JSON protocol mode (step 8): stdin carries `ToolRequest` lines,
+    /// stdout carries one `ToolResponse` line per request. Used when the
+    /// process is spawned by the multi-session orchestrator (`serve`).
+    pub json: bool,
 }
 
 impl RunConfig {
@@ -40,6 +44,7 @@ impl RunConfig {
             tool_timeout: DEFAULT_TOOL_TIMEOUT,
             state_dir: None,
             resume: None,
+            json: false,
         }
     }
 }
@@ -92,26 +97,6 @@ pub fn run(
         Some(id) => Session::resume(id.clone(), config.repo.clone(), NoHooks, store)?,
         None => Session::start(SessionId::generate(), config.repo.clone(), NoHooks, store)?,
     };
-    match &config.resume {
-        Some(_) => writeln!(
-            output,
-            "session {} resumed on {} ({} checkpoints, {} trusted, {} sensitive patterns)",
-            session.id(),
-            config.repo.display(),
-            session.checkpoints(),
-            policy.trusted.len(),
-            policy.sensitives.len()
-        )?,
-        None => writeln!(
-            output,
-            "session {} started on {} ({} trusted, {} sensitive patterns)",
-            session.id(),
-            config.repo.display(),
-            policy.trusted.len(),
-            policy.sensitives.len()
-        )?,
-    }
-
     let mut tool = match &config.tool {
         Some(binary) => Some(Tool::spawn(
             binary,
@@ -139,60 +124,192 @@ pub fn run(
         checkpoints: 0,
         tool_calls: 0,
     };
+    let mut ended = false;
+    if config.json {
+        ended = run_json(
+            &mut session,
+            tool.as_mut(),
+            &secrets,
+            config.tool_timeout,
+            &mut outcome,
+            input,
+            &mut output,
+        )?;
+    } else {
+        match &config.resume {
+            Some(_) => writeln!(
+                output,
+                "session {} resumed on {} ({} checkpoints, {} trusted, {} sensitive patterns)",
+                session.id(),
+                config.repo.display(),
+                session.checkpoints(),
+                policy.trusted.len(),
+                policy.sensitives.len()
+            )?,
+            None => writeln!(
+                output,
+                "session {} started on {} ({} trusted, {} sensitive patterns)",
+                session.id(),
+                config.repo.display(),
+                policy.trusted.len(),
+                policy.sensitives.len()
+            )?,
+        }
+        for line in input.lines() {
+            let line = line?;
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            match line {
+                "quit" | "exit" => break,
+                "checkpoint" => {
+                    outcome.checkpoints = session.checkpoint()?;
+                    writeln!(output, "checkpoint {}", outcome.checkpoints)?;
+                }
+                _ => {
+                    outcome.tool_calls += 1;
+                    match &mut tool {
+                        Some(tool) => {
+                            let req = ToolRequest {
+                                id: outcome.tool_calls,
+                                input: line.to_string(),
+                            };
+                            match tool.call(&req, config.tool_timeout) {
+                                Ok(resp) => {
+                                    writeln!(output, "ok {} code {}", resp.ok, resp.code)?;
+                                    let stdout = secrets.mask(&resp.stdout);
+                                    if !stdout.is_empty() {
+                                        write!(output, "{stdout}")?;
+                                        if !stdout.ends_with('\n') {
+                                            writeln!(output)?;
+                                        }
+                                    }
+                                    let stderr = secrets.mask(&resp.stderr);
+                                    if !stderr.is_empty() {
+                                        write!(output, "{stderr}")?;
+                                        if !stderr.ends_with('\n') {
+                                            writeln!(output)?;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    writeln!(output, "error: {e}")?;
+                                }
+                            }
+                        }
+                        None => {
+                            writeln!(output, "error: no tool configured")?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if !ended {
+        session.end()?;
+    }
+    if !config.json {
+        writeln!(output, "session {} ended", session.id())?;
+    }
+    output.flush()?;
+    Ok(outcome)
+}
+
+fn ok_response(stdout: impl Into<String>) -> ToolResponse {
+    ToolResponse {
+        ok: true,
+        code: 0,
+        stdout: stdout.into(),
+        stderr: String::new(),
+        truncated: false,
+    }
+}
+
+fn error_response(code: i32, message: impl Into<String>) -> ToolResponse {
+    ToolResponse {
+        ok: false,
+        code,
+        stdout: String::new(),
+        stderr: message.into(),
+        truncated: false,
+    }
+}
+
+/// Line-JSON loop (step 8): each input line must be a valid `ToolRequest`;
+/// each request gets exactly one `ToolResponse` line. `status` reports the
+/// session state, `checkpoint` checkpoints, `quit`/`exit` ends the session
+/// and closes the loop, anything else is forwarded to the tool. Malformed
+/// request lines are answered with an error response (fail-closed), never
+/// partially interpreted.
+fn run_json(
+    session: &mut Session,
+    mut tool: Option<&mut Tool>,
+    secrets: &SecretStore,
+    timeout: Duration,
+    outcome: &mut RunOutcome,
+    input: impl BufRead,
+    output: &mut impl Write,
+) -> Result<bool, RunError> {
+    let mut ended = false;
     for line in input.lines() {
         let line = line?;
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
-        match line {
-            "quit" | "exit" => break,
-            "checkpoint" => {
-                outcome.checkpoints = session.checkpoint()?;
-                writeln!(output, "checkpoint {}", outcome.checkpoints)?;
-            }
-            _ => {
-                outcome.tool_calls += 1;
-                match &mut tool {
-                    Some(tool) => {
-                        let req = ToolRequest {
-                            id: outcome.tool_calls,
-                            input: line.to_string(),
-                        };
-                        match tool.call(&req, config.tool_timeout) {
-                            Ok(resp) => {
-                                writeln!(output, "ok {} code {}", resp.ok, resp.code)?;
-                                let stdout = secrets.mask(&resp.stdout);
-                                if !stdout.is_empty() {
-                                    write!(output, "{stdout}")?;
-                                    if !stdout.ends_with('\n') {
-                                        writeln!(output)?;
-                                    }
-                                }
-                                let stderr = secrets.mask(&resp.stderr);
-                                if !stderr.is_empty() {
-                                    write!(output, "{stderr}")?;
-                                    if !stderr.ends_with('\n') {
-                                        writeln!(output)?;
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                writeln!(output, "error: {e}")?;
-                            }
-                        }
-                    }
-                    None => {
-                        writeln!(output, "error: no tool configured")?;
+        let resp = match serde_json::from_str::<ToolRequest>(line) {
+            Err(e) => error_response(2, format!("malformed request line: {e}")),
+            Ok(req) => match req.input.trim() {
+                "status" => ok_response(format!(
+                    "session {} on {} ({} checkpoints)",
+                    session.id(),
+                    session.root().display(),
+                    session.checkpoints()
+                )),
+                "checkpoint" => {
+                    outcome.checkpoints += 1;
+                    match session.checkpoint() {
+                        Ok(n) => ok_response(format!("checkpoint {n}")),
+                        Err(e) => error_response(1, e.to_string()),
                     }
                 }
-            }
+                "quit" | "exit" => {
+                    session.end()?;
+                    ended = true;
+                    ok_response(format!("session {} ended", session.id()))
+                }
+                input => {
+                    outcome.tool_calls += 1;
+                    match &mut tool {
+                        Some(tool) => {
+                            let req = ToolRequest {
+                                id: req.id,
+                                input: input.to_string(),
+                            };
+                            match tool.call(&req, timeout) {
+                                Ok(mut resp) => {
+                                    resp.stdout = secrets.mask(&resp.stdout);
+                                    resp.stderr = secrets.mask(&resp.stderr);
+                                    resp
+                                }
+                                Err(e) => error_response(1, e.to_string()),
+                            }
+                        }
+                        None => error_response(3, "no tool configured"),
+                    }
+                }
+            },
+        };
+        let line = serde_json::to_string(&resp)
+            .map_err(|e| crate::process::ProcessError::Malformed(e.to_string()))?;
+        writeln!(output, "{line}")?;
+        output.flush()?;
+        if ended {
+            break;
         }
     }
-    session.end()?;
-    writeln!(output, "session {} ended", session.id())?;
-    output.flush()?;
-    Ok(outcome)
+    Ok(ended)
 }
 
 #[cfg(test)]
@@ -398,5 +515,88 @@ mod tests {
             result,
             Err(RunError::Session(SessionError::RootMismatch { .. }))
         ));
+    }
+
+    // --- Step 8: line-JSON protocol mode (`--json`) ---
+
+    fn json_config(dir: &tempfile::TempDir) -> RunConfig {
+        let mut config = config(dir);
+        config.json = true;
+        config
+    }
+
+    fn json_req(id: u64, input: &str) -> String {
+        serde_json::to_string(&crate::process::ToolRequest {
+            id,
+            input: input.to_string(),
+        })
+        .unwrap()
+    }
+
+    fn parse_responses(out: &str) -> Vec<crate::process::ToolResponse> {
+        out.lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn json_status_checkpoint_and_quit_answer_one_line_per_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = json_config(&dir);
+        let input = format!(
+            "{}\n{}\n{}\n",
+            json_req(1, "status"),
+            json_req(2, "checkpoint"),
+            json_req(3, "quit")
+        );
+        let (outcome, out) = run_str(&config, &input).unwrap();
+        let resps = parse_responses(&out);
+        assert_eq!(resps.len(), 3);
+        assert!(resps[0].ok);
+        assert!(resps[0].stdout.contains("sess-"), "{}", resps[0].stdout);
+        assert!(resps[1].ok);
+        assert_eq!(resps[1].stdout, "checkpoint 1");
+        assert!(resps[2].ok);
+        assert!(resps[2].stdout.contains("ended"));
+        assert_eq!(outcome.checkpoints, 1);
+        assert_eq!(outcome.tool_calls, 0);
+        // no text banner in json mode
+        assert!(!out.contains("started on"));
+    }
+
+    #[test]
+    fn json_tool_line_without_tool_is_an_error_response() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = json_config(&dir);
+        let (outcome, out) = run_str(&config, &format!("{}\n", json_req(1, "echo hi"))).unwrap();
+        let resps = parse_responses(&out);
+        assert_eq!(resps.len(), 1);
+        assert!(!resps[0].ok);
+        assert_eq!(resps[0].code, 3);
+        assert!(resps[0].stderr.contains("no tool configured"));
+        assert_eq!(outcome.tool_calls, 1);
+    }
+
+    #[test]
+    fn json_malformed_request_line_gets_a_fail_closed_error_response() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = json_config(&dir);
+        let (_, out) = run_str(&config, "not json\n{\"id\":1}\n").unwrap();
+        let resps = parse_responses(&out);
+        assert_eq!(resps.len(), 2);
+        assert!(!resps[0].ok);
+        assert_eq!(resps[0].code, 2);
+        assert!(resps[0].stderr.contains("malformed request line"));
+        assert!(!resps[1].ok);
+        assert_eq!(resps[1].code, 2);
+    }
+
+    #[test]
+    fn json_eof_ends_the_session_without_extra_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = json_config(&dir);
+        let (outcome, out) = run_str(&config, "").unwrap();
+        assert_eq!(outcome.checkpoints, 0);
+        assert!(out.is_empty());
     }
 }

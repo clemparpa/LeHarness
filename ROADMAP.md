@@ -73,7 +73,7 @@
 - Brancher `la-console` (repo séparé `clemparpa/LaConsole`) comme outil via le lanceur générique de l'étape 3. Dépendance par **binaire**, jamais par code.
 - **Testable** : e2e contre le vrai binaire `la-console`.
 
-## Étape 8 — Orchestrateur multi-sessions (local-first) 🔜 prioritaire
+## Étape 8 — Orchestrateur multi-sessions (local-first) 🚧 (cette PR)
 
 - Spec : [spec/steps/08-multi-session.md](spec/steps/08-multi-session.md)
 - **Goal acté** : le serveur traite plusieurs sessions en même temps. Un **processus par session** via le lanceur de l'étape 3 (protocole ligne-JSON), un thread lecteur par session → `mpsc`. Zéro runtime async.

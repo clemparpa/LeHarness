@@ -3,6 +3,7 @@
 //! - `echo <text>`  -> ok, stdout = <text>
 //! - `fail`         -> ok=false, code=1
 //! - `sleep`        -> answers only after 60 s (timeout tests)
+//! - `sleep-ms <n>` -> answers after n milliseconds (concurrency tests)
 //! - `garbage`      -> answers with a non-JSON line (malformed-response tests)
 //! - `printenv`     -> ok, stdout = the tool's whole environment (env leak tests)
 //! - `leak`         -> ok, stdout contains a fixed secret value (masking tests)
@@ -27,6 +28,10 @@ fn main() {
         }
         if input == "sleep" {
             std::thread::sleep(std::time::Duration::from_secs(60));
+        }
+        if let Some(ms) = input.strip_prefix("sleep-ms ") {
+            let ms: u64 = ms.trim().parse().unwrap_or(0);
+            std::thread::sleep(std::time::Duration::from_millis(ms));
         }
         let (ok, code, stdout) = if let Some(text) = input.strip_prefix("echo ") {
             (true, 0, text.to_string())
