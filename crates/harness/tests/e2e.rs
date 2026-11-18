@@ -254,3 +254,151 @@ fn cli_missing_repo_exits_2() {
     let output = run_cli(&["run", "--repo", &root_arg], "");
     assert_eq!(output.status.code(), Some(2));
 }
+
+// --- Step 5: file checkpoints + resume (`--state-dir`, `--resume`) ---
+
+fn session_id_from_stdout(stdout: &str) -> String {
+    stdout
+        .split_whitespace()
+        .find(|t| t.starts_with("sess-"))
+        .expect("session id in stdout")
+        .to_string()
+}
+
+/// Spawns the CLI, feeds it lines, then kills the child mid-session (no `quit`,
+/// no EOF): simulates a crash, the session stays `Running` on disk.
+fn run_cli_killed(args: &[&str], stdin_data: &str) -> std::process::Output {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(harness_bin())
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(stdin_data.as_bytes())
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(200));
+    child.kill().unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn cli_checkpoint_persists_a_json_snapshot() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo_with_policy(&dir);
+    let state = dir.path().join("state");
+    let root_arg = root.to_str().unwrap().to_string();
+    let state_arg = state.to_str().unwrap().to_string();
+    let output = run_cli(
+        &["run", "--repo", &root_arg, "--state-dir", &state_arg],
+        "checkpoint\nquit\n",
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let id = session_id_from_stdout(&stdout);
+    let raw = std::fs::read_to_string(state.join(format!("{id}.json"))).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(v["id"], id);
+    assert_eq!(v["checkpoints"], 1);
+    assert_eq!(v["state"], "Ended");
+}
+
+#[test]
+fn cli_resume_after_a_crash_continues_the_checkpoint_counter() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo_with_policy(&dir);
+    let state = dir.path().join("state");
+    let root_arg = root.to_str().unwrap().to_string();
+    let state_arg = state.to_str().unwrap().to_string();
+
+    let crashed = run_cli_killed(
+        &["run", "--repo", &root_arg, "--state-dir", &state_arg],
+        "checkpoint\ncheckpoint\n",
+    );
+    let stdout = String::from_utf8(crashed.stdout).unwrap();
+    assert!(stdout.contains("checkpoint 2"), "stdout: {stdout}");
+    let id = session_id_from_stdout(&stdout);
+    let raw = std::fs::read_to_string(state.join(format!("{id}.json"))).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(v["checkpoints"], 2);
+    assert_eq!(v["state"], "Running");
+
+    let output = run_cli(
+        &[
+            "run",
+            "--repo",
+            &root_arg,
+            "--state-dir",
+            &state_arg,
+            "--resume",
+            &id,
+        ],
+        "checkpoint\nquit\n",
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("resumed on"), "stdout: {stdout}");
+    assert!(stdout.contains("2 checkpoints"), "stdout: {stdout}");
+    assert!(stdout.contains("checkpoint 3"), "stdout: {stdout}");
+    assert!(stdout.contains("ended"), "stdout: {stdout}");
+}
+
+#[test]
+fn cli_resume_unknown_id_exits_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo_with_policy(&dir);
+    let state = dir.path().join("state");
+    let root_arg = root.to_str().unwrap().to_string();
+    let state_arg = state.to_str().unwrap().to_string();
+    let output = run_cli(
+        &[
+            "run",
+            "--repo",
+            &root_arg,
+            "--state-dir",
+            &state_arg,
+            "--resume",
+            "sess-nope-0",
+        ],
+        "",
+    );
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("not found"), "stderr: {stderr}");
+}
+
+#[test]
+fn cli_resume_ended_session_exits_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo_with_policy(&dir);
+    let state = dir.path().join("state");
+    let root_arg = root.to_str().unwrap().to_string();
+    let state_arg = state.to_str().unwrap().to_string();
+    let first = run_cli(
+        &["run", "--repo", &root_arg, "--state-dir", &state_arg],
+        "quit\n",
+    );
+    assert_eq!(first.status.code(), Some(0));
+    let id = session_id_from_stdout(&String::from_utf8(first.stdout).unwrap());
+    let output = run_cli(
+        &[
+            "run",
+            "--repo",
+            &root_arg,
+            "--state-dir",
+            &state_arg,
+            "--resume",
+            &id,
+        ],
+        "",
+    );
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("already ended"), "stderr: {stderr}");
+}

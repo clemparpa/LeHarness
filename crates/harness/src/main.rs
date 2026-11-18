@@ -5,6 +5,7 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 
 use harness::run::{run, RunConfig};
+use harness::session::SessionId;
 
 #[derive(Parser)]
 #[command(
@@ -34,6 +35,13 @@ enum Commands {
         /// Per-call timeout for the tool, in seconds (default 30).
         #[arg(long, value_name = "SECS", default_value_t = 30)]
         tool_timeout: u64,
+        /// Resume an existing session instead of starting a new one.
+        #[arg(long, value_name = "SESSION_ID")]
+        resume: Option<SessionId>,
+        /// Directory holding the per-session JSON snapshots
+        /// (default: $HOME/.local/share/le-harness/sessions).
+        #[arg(long, value_name = "PATH")]
+        state_dir: Option<PathBuf>,
     },
 }
 
@@ -45,12 +53,16 @@ fn main() -> ExitCode {
             tool,
             secrets_file,
             tool_timeout,
+            resume,
+            state_dir,
         } => {
             let config = RunConfig {
                 repo,
                 tool,
                 secrets_file,
                 tool_timeout: Duration::from_secs(tool_timeout),
+                state_dir,
+                resume,
             };
             let stdin = std::io::stdin();
             let stdout = std::io::stdout();

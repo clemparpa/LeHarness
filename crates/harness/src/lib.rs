@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod persistence;
 pub mod policy;
 pub mod process;
 pub mod run;
