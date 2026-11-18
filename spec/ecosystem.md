@@ -79,7 +79,8 @@ ACP laisse délibérément le format d'historique à l'agent.
 
 - **Étape 8 — orchestrateur multi-sessions** : un **processus par session** via
   `process.rs`, un thread lecteur par session → `mpsc` ; bornes `--max-sessions`,
-  flock par repo, rlimits, timeout par message. Zéro dépendance ajoutée.
+  flock par worktree (plusieurs worktrees du même repo autorisés), rlimits,
+  timeout par message. Zéro dépendance ajoutée.
 - **Étape 9 — TUI** : `ratatui` 0.30 + `crossterm` 0.29 (boucle `poll`/`read` +
   thread d'événements → `mpsc`, rendu sur **stderr**), `color-eyre` +
   `signal-hook`. Widgets au besoin : `ratatui-textarea`, `throbber-widgets-tui` ;
@@ -130,7 +131,8 @@ bornées par appel d'outil. « Synchrone » signifiait « pas de runtime async �
    auditable, testable (wall-clock) — pas d'interleavings d'un runtime.
 4. **Bornes explicites, obligatoires dès qu'on est concurrent** :
    - multi-sessions : `--max-sessions N` global (refus au-delà, fail-closed),
-     **flock par repo** (jamais deux sessions sur le même repo), rlimits sur
+     **flock par worktree** (racine canonique du worktree : plusieurs worktrees
+     du même repo en parallèle = OK, même worktree = refus), rlimits sur
      chaque fils, timeout par message + kill propre, log d'audit append-only par
      session ; l'orchestrateur ne détient **aucun secret de session** (il route) ;
    - outils parallèles : `--max-parallel-tools N` (défaut 4, plafond 16) ; les
@@ -176,8 +178,8 @@ Cas d'usage tranchés :
 
 - **Plusieurs sessions en même temps** (lancer plusieurs tâches) → côté harness,
   étape 8 `serve` : **un processus par session**, thread lecteur par session →
-  `mpsc`, bornes fail-closed (`--max-sessions`, flock par repo, rlimits, timeout
-  par message). Zéro async.
+  `mpsc`, bornes fail-closed (`--max-sessions`, flock par worktree, rlimits,
+  timeout par message). Zéro async.
 - **Appels d'outils en parallèle** : l'agent externe peut en émettre plusieurs
   d'un coup ; le harness doit donc accepter plusieurs requêtes **en vol** → cœur
   étape 9 : `submit` non bloquant + worker threads bornées

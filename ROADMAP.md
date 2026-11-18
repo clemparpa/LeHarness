@@ -75,7 +75,7 @@
 
 - Spec : [spec/steps/08-multi-session.md](spec/steps/08-multi-session.md)
 - **Goal acté** : le serveur traite plusieurs sessions en même temps. Un **processus par session** via le lanceur de l'étape 3 (protocole ligne-JSON), un thread lecteur par session → `mpsc`. Zéro runtime async.
-- Bornes fail-closed : `--max-sessions` global, **flock par repo** (jamais deux sessions sur le même repo), rlimits sur chaque fils, timeout par message + kill propre, log d'audit append-only par session. L'orchestrateur ne détient aucun secret de session (il route).
+- Bornes fail-closed : `--max-sessions` global, **flock par worktree** (racine canonique du worktree passée à `--repo` : plusieurs worktrees du même repo en parallèle = OK, deux sessions sur le même worktree = refus), rlimits sur chaque fils, timeout par message + kill propre, log d'audit append-only par session. L'orchestrateur ne détient aucun secret de session (il route).
 - Chaque session a son propre `SecretStore` + phantom token (broker) : isolation par processus.
 - Le mode GitHub App remote (webhooks, jobs éphémères) reste **en v2 par-dessus**, toujours dépriorisé.
 - **Testable** : tests d'intégration multi-sessions simultanées contre des outils bidons (concurrence mesurée, flock, bornes, kill propre).

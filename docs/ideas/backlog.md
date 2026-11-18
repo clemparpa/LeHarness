@@ -21,7 +21,9 @@
 - [x] **Orchestration multi-sessions ✅ goal prioritaire (étape 8, ré-priorisée)** :
       le serveur traite plusieurs sessions en même temps, **un processus par
       session** via le lanceur ligne-JSON, thread lecteur par session → `mpsc`.
-      Bornes : `--max-sessions`, flock par repo, rlimits, timeout par message, audit
+      Bornes : `--max-sessions`, flock par worktree (racine canonique : plusieurs
+      worktrees du même repo en parallèle = OK, même worktree = refus), rlimits,
+      timeout par message, audit
       par session ; l'orchestrateur ne détient aucun secret. Le GitHub App remote
       (webhooks) reste en v2 par-dessus, toujours dépriorisé.
 - [x] **Appels d'outils en parallèle ✅ goal prioritaire (étape 9, avec la TUI)** :

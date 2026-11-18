@@ -17,9 +17,21 @@ reste en v2 par-dessus, toujours dépriorisé. Mécanisme et bornes justifiés d
   - Un thread lecteur par session → `std::sync::mpsc::channel` côté
     orchestrateur : multiplexage sans runtime async.
   - **Bornes (fail-closed)** : `--max-sessions` atteint = refus ; **flock par
-    repo** (deux sessions sur le même repo = refus) ; rlimits sur chaque fils
+    worktree** (voir ci-dessous) ; rlimits sur chaque fils
     via le lanceur ; timeout par message (`--session-timeout`, défaut 30 s) +
     kill propre du fils.
+  - **Verrou par worktree** : l'identité du verrou est la **racine canonique du
+    worktree** passée à `--repo` (canonicalize : symlinks, `..`, chemins relatifs
+    résolus — deux chemins vers le même worktree = même verrou). **Plusieurs
+    sessions sur des worktrees différents du même repo sont autorisées** (besoin
+    acté) ; deux sessions sur le **même worktree** = refus. Détection : `.git`
+    est un **fichier** contenant `gitdir: <chemin>` → worktree lié ; sinon racine
+    du repo principal (ou simple répertoire non-git, identité = racine
+    canonique). La politique (`trusted.txt` / `sensitives.txt`) est lue dans
+    chaque worktree — chaque worktree a son propre checkout, donc sa propre
+    politique. Hors scope v1 : les métadonnées git partagées (common dir :
+    refs, objets) ne sont pas verrouillées ; une seconde serrure sur le common
+    dir pour les commandes `trusted` mutantes git pourra être ajoutée plus tard.
   - L'orchestrateur **ne détient aucun secret de session** : il route des lignes
     JSON déjà masquées ; log d'audit append-only par session (id, événements,
     jamais de contenu de secret).
@@ -34,7 +46,9 @@ reste en v2 par-dessus, toujours dépriorisé. Mécanisme et bornes justifiés d
 - Tests unitaires `serve.rs` : parsing des requêtes, bornes (max-sessions atteint
   = refus), table session → processus.
 - Tests e2e : N sessions simultanées contre `dummy-tool` (concurrence mesurée
-  au wall-clock) ; flock (deuxième session sur le même repo = refus) ; kill
+  au wall-clock) ; flock par worktree (deuxième session sur le même worktree =
+  refus, même via un symlink ; deux sessions sur deux worktrees du même repo =
+  OK) ; kill
   propre en fin de vie (proptest : aucun processus fils ne reste vivant) ;
   timeout d'une session qui ne répond pas = kill + erreur.
 - Gate PR vert : `cargo fmt --check`, `clippy -D warnings`, `cargo test`,
