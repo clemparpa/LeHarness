@@ -140,6 +140,28 @@ bornées par appel d'outil. « Synchrone » signifiait « pas de runtime async �
 5. **Supply chain inchangée** : `std::thread` + `std::process`, zéro dépendance
    ajoutée — le `Cargo.lock` reste sans `tokio`.
 
+### 8.1 Ce que font les harnais Rust existants (nov. 2026)
+
+| Harnais Rust | Substrat async ? | Pourquoi ce choix chez eux |
+|---|---|---|
+| [Codex CLI](https://github.com/openai/codex) (codex-rs) | **tokio** partout (`tokio::process::Command` pour les subprocess sandboxés ; TUI ratatui+crossterm+tokio) | Il **parle au modèle en HTTP streaming** + PTY + multi-I/O : la latence réseau domine, l'async paie |
+| [Goose](https://github.com/block/goose) (Block/AAIF) | **tokio** (`tokio::process`, `tokio::net::TcpListener` en mode web) | Providers LLM en HTTP + serveurs MCP (stdio *et* HTTP) : beaucoup d'I/O réseau concurrent |
+| [jcode](https://github.com/1jehuang/jcode) | runtime async + **un seul daemon partagé** par toutes les sessions (~28 Mo PSS total, sessions en mémoire partagée) | Multi-sessions efficace en mémoire — compromis inverse du nôtre : nous, **isolation par processus** (les secrets ne sont jamais en mémoire partagée entre sessions) |
+| [pi_agent_rust](https://github.com/Dicklesworthstone/pi_agent_rust) | runtime async maison (« asupersync »), **threads dédiés stdin/stdout pontés par canaux** vers le runtime | Même constat : boucle agent (LLM streaming) en async, I/O terminal en threads |
+| [rig_cat](https://docs.rs/rig-cat) | **pas d'async** (« No async, no tokio » — fibers + threads) | Contre-exemple de niche : composition synchrone, parallélisme par threads |
+| [Rig](https://rig.rs) | tokio dans les exemples, mais le cœur **ne requiert pas tokio** | Core `Send + Sync`, runtime au choix de l'appelant |
+
+**Lecture** : tous les harnais Rust qui ont choisi l'async le font parce qu'ils
+appellent des **API LLM en HTTP streaming** — leur attente dominante est le
+réseau. LeHarness ne parle **pas au modèle** (c'est l'agent externe qui le fait,
+voir `structure.md`) : ses attentes dominantes sont des **sous-processus**
+(la-console) et des fichiers locaux — et même tokio fait son file I/O en
+bloquant sous le capot (chaque appel `tokio::fs` spawn un thread). Pour ce
+profil de charge, `std::thread` est le bon grain ; l'async n'achète qu'une
+couche d'interleavings. Les seules couches réseau (ACP, MCP-over-HTTP, webhooks
+GitHub App) sont précisément celles où un runtime async serait justifié —
+optionnelles, isolées, jamais dans le cœur.
+
 ### Quand un runtime async resterait envisageable
 
 Uniquement sur **besoin mesuré**, et isolé dans une couche réseau dédiée (jamais
