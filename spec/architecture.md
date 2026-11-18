@@ -11,7 +11,7 @@ binaire externe.
 flowchart TD
     T1[CLI local] --> H
     T2[ACP - éditeur] --> H
-    T3[Orchestrateur GitHub App - dépriorisé] --> H
+    T3[Orchestrateur multi-sessions - prioritaire<br/>un processus par session] --> H
     T4[TUI Rust de base - prioritaire] --> H
     H[harness - coeur de session<br/>hooks: start / checkpoint / end / resume] --> S[SecretStore<br/>secrets en memoire, masquage ***]
     H --> P[Persistance<br/>trait injecte par la couche appelante]
@@ -61,10 +61,11 @@ Aucune n'est obligatoire ; le cœur fonctionne sans.
 | CLI local | `le-harness run --repo <chemin>`, boucle interactive | clap |
 | TUI Rust de base | interface terminal standard au-dessus du cœur (prioritaire) | `ratatui` + `crossterm`, boucle synchrone (voir [ecosystem.md](ecosystem.md)) |
 | ACP | piloté comme agent depuis un éditeur (Zed...) | v1 : rôle `Agent` maison synchrone au-dessus du protocole ligne-JSON ; SDK officiel `agent-client-protocol` (async) si besoin mesuré |
-| Orchestrateur GitHub App | webhooks, jobs éphémères (remote, dépriorisé) | reqwest + rustls, mode blocking, côté harness |
+| Orchestrateur multi-sessions | plusieurs sessions en parallèle, un processus par session (local-first) ; GitHub App remote en v2 par-dessus | `std::process` + threads + ligne-JSON (voir [ecosystem.md](ecosystem.md)) |
 
-> **Synchrone par défaut** : aucune couche n'embarque de runtime async en v1 ;
-> critères de réouverture dans [ecosystem.md](ecosystem.md) §8.
+> **Concurrence bornée, sans runtime async** : multi-sessions = un processus par
+> session, appels d'outils parallèles = threads bornées (`--max-parallel-tools`) ;
+> aucun runtime async dans aucune couche en v1 ([ecosystem.md](ecosystem.md) §8).
 
 ## Règle d'indépendance
 

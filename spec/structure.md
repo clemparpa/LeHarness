@@ -38,9 +38,12 @@ LeHarness/
 
 ## Dépendances
 
-**Règle : 100 % synchrone** — aucun runtime async (`tokio` & co) en dépendance
-directe. Décision et critères de réouverture : [ecosystem.md](ecosystem.md) §8.
-`cargo shear` vérifie qu'aucune dépendance n'est inutilisée.
+**Règle : concurrence bornée, sans runtime async** — aucun runtime async
+(`tokio` & co) en dépendance directe. La concurrence (multi-sessions =
+processus par session, outils parallèles = threads bornées) n'ajoute **aucune**
+dépendance : `std::thread` + `std::process`. Décision et bornes :
+[ecosystem.md](ecosystem.md) §8. `cargo shear` vérifie qu'aucune dépendance
+n'est inutilisée.
 
 Actuelles (`Cargo.lock`) :
 
