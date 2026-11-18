@@ -18,9 +18,43 @@
       inspiré de nono) — notamment avec la-console. L'outil ne reçoit qu'un
       token fantôme ; le vrai secret reste côté harness et n'est injecté qu'à
       la sortie, vers la destination autorisée uniquement.
-- [x] **GitHub App remote dépriorisé ✅ décidé** : l'étape 8 n'est plus la
-      priorité. La priorité est un harness standard pilotable depuis une
-      **interface TUI Rust de base** (nouvelle étape 9).
+- [x] **Orchestration multi-sessions ✅ goal prioritaire (étape 8, ré-priorisée)** :
+      le serveur traite plusieurs sessions en même temps, **un processus par
+      session** via le lanceur ligne-JSON, thread lecteur par session → `mpsc`.
+      Bornes : `--max-sessions`, rlimits, timeout par message, audit
+      par session ; l'orchestrateur ne détient aucun secret. **Pas de verrou de
+      worktree** (décidé nov. 2026, supprimé) : plusieurs sessions sur le même
+      worktree / plusieurs worktrees du même repo = OK — en cas d'écritures
+      concurrentes sur les mêmes fichiers, responsabilité de l'utilisateur.
+      Le GitHub App remote
+      (webhooks) reste en v2 par-dessus, toujours dépriorisé.
+- [x] **Appels d'outils en parallèle ✅ goal prioritaire (étape 9, avec la TUI)** :
+      `submit` non bloquant + worker threads bornées (`--max-parallel-tools`,
+      défaut 4, plafond 16), résultats taggés par id ; requêtes avec redirection
+      (`>`/`>>`) sérialisées par mutex ; timeout + kill + masquage par appel.
+- [x] **Concurrence bornée, sans runtime async ✅ décidé (révisé nov. 2026)** :
+      « synchrone » = pas de runtime async, pas « pas de concurrence ». La
+      concurrence (multi-sessions, outils parallèles) passe par processus/threads
+      OS bornés : unités lourdes (attente bloquante inhérente), isolation par
+      processus (SecretStore + phantom token par session), déterminisme/audit par
+      unité, zéro dépendance ajoutée (pas de `tokio` dans le `Cargo.lock`).
+      Runtime async envisageable uniquement sur besoin mesuré (C10k, fan-out HTTP
+      massif), isolé dans une couche réseau, jamais dans le cœur.
+      Détail : `spec/ecosystem.md` §8.
+- [x] **Stack TUI (étape 9) ✅ décidé** : `ratatui` + `crossterm` (boucle
+      `poll`/`read` + thread d'événements → `mpsc`, rendu sur stderr), `color-eyre`
+      + `signal-hook` pour la restauration du terminal. `tui-rs` archivé,
+      `cursive`/`termion`/`termwiz`/`blessed-rs` non retenus, `tuirealm` reporté.
+      Tour d'horizon complet : `spec/ecosystem.md`.
+- [x] **ACP : le harness est un Proxy, pas un Agent ✅ décidé (clarifié nov. 2026)** :
+      spec ACP v1 stable (oct. 2026). Le harness se branche entre l'éditeur (client
+      ACP) et l'agent LLM externe (qui garde boucle LLM et chat) : il intercepte les
+      appels d'outils et les exécute de façon confinée. En v1, rôle `Proxy` maison
+      synchrone au-dessus du protocole ligne-JSON ; SDK officiel (async,
+      `conductor`/Proxy) si besoin mesuré.
+- [x] **Deux UI, deux côtés ✅ clarifié** : boucle LLM + chat UI + client ACP =
+      agent externe ; TUI (étape 9) = front local optionnel du cœur headless
+      (« safe shell »), sans boucle LLM ni chat.
 
 ## ✅ Décidés
 
