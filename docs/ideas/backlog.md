@@ -13,6 +13,14 @@
       `HOME` du sous-processus pointé hors du root avec une config git propre ;
       `.git/config` et `.git-credentials` déclarés fichiers sensibles. Le token
       est aussi **masqué** (`***`) dans stdout/stderr des réponses JSON
+- [x] **Rôle de broker de credentials ✅ décidé** : le harness joue le rôle de
+      **reverse proxy local** auprès des outils (pattern « phantom token »,
+      inspiré de nono) — notamment avec la-console. L'outil ne reçoit qu'un
+      token fantôme ; le vrai secret reste côté harness et n'est injecté qu'à
+      la sortie, vers la destination autorisée uniquement.
+- [x] **GitHub App remote dépriorisé ✅ décidé** : l'étape 8 n'est plus la
+      priorité. La priorité est un harness standard pilotable depuis une
+      **interface TUI Rust de base** (nouvelle étape 9).
 
 ## ✅ Décidés
 

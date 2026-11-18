@@ -11,7 +11,8 @@ binaire externe.
 flowchart TD
     T1[CLI local] --> H
     T2[ACP - éditeur] --> H
-    T3[Orchestrateur GitHub App] --> H
+    T3[Orchestrateur GitHub App - dépriorisé] --> H
+    T4[TUI Rust de base - prioritaire] --> H
     H[harness - coeur de session<br/>hooks: start / checkpoint / end / resume] --> S[SecretStore<br/>secrets en memoire, masquage ***]
     H --> P[Persistance<br/>trait injecte par la couche appelante]
     H --> L[Lanceur de sous-processus<br/>protocole ligne JSON, timeout, kill]
@@ -43,6 +44,14 @@ flowchart TD
 - Le stdin/stdout du fils appartiennent au protocole ; les secrets ne sont
   **jamais** passés par env ou argv.
 
+### Proxy de credentials (broker)
+
+- Le harness peut jouer le rôle de **reverse proxy local** pour les outils :
+  l'outil ne reçoit qu'un *phantom token* de session ; le vrai secret, détenu
+  uniquement par le harness, est injecté à la sortie vers la destination
+  autorisée uniquement (pattern « phantom token », inspiré de nono).
+- Concerne notamment la-console et tout outil ayant besoin d'un credential réseau.
+
 ## Couches de transport optionnelles
 
 Aucune n'est obligatoire ; le cœur fonctionne sans.
@@ -50,8 +59,9 @@ Aucune n'est obligatoire ; le cœur fonctionne sans.
 | Couche | Rôle | Tech |
 |---|---|---|
 | CLI local | `le-harness run --repo <chemin>`, boucle interactive | clap |
+| TUI Rust de base | interface terminal standard au-dessus du cœur (prioritaire) | crate TUI Rust (ex. ratatui) |
 | ACP | piloté comme agent depuis un éditeur (Zed...) | crate officielle `agent-client-protocol`, rôle `Agent` |
-| Orchestrateur GitHub App | webhooks, jobs éphémères (remote) | reqwest + rustls côté harness |
+| Orchestrateur GitHub App | webhooks, jobs éphémères (remote, dépriorisé) | reqwest + rustls côté harness |
 
 ## Règle d'indépendance
 

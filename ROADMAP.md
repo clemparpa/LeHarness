@@ -7,7 +7,8 @@
 - Cœur sécurité (`SecretStore`, lanceur de sous-processus, hooks de session) écrit maison, volontairement.
 - Aucun `unsafe` en v1 (`#![forbid(unsafe_code)]`).
 - **Le harness est 100 % indépendant de la-console** : deux repos séparés (`clemparpa/LaConsole`), aucune dépendance de code. La console n'est qu'un outil optionnel, branché comme binaire externe (étape 7).
-- **Local-first** : le harness tourne en local sur un repo local ; le mode GitHub App remote (étape 8) s'ajoute par-dessus sans toucher au cœur.
+- **Local-first** : le harness tourne en local sur un repo local. Le mode GitHub App remote (étape 8) est **dépriorisé** (voir étape 8).
+- **Le harness est le broker de credentials des outils** : il joue le rôle de **reverse proxy local** (pattern « phantom token », inspiré de [nono](https://nono.sh)) — les outils ne reçoivent qu'un token fantôme de session ; le vrai secret, détenu uniquement par le harness, est injecté à la sortie, uniquement vers les destinations autorisées.
 - Sur le dépôt public : workflows de PR de forks bloqués (garde-fou `if:` dans la CI) — jamais de jobs coûteux exposés aux forks.
 
 ## Étape 0 — Squelette + arsenal (fondation) ✅
@@ -60,10 +61,17 @@
 - Brancher `la-console` (repo séparé `clemparpa/LaConsole`) comme outil via le lanceur générique de l'étape 3. Dépendance par **binaire**, jamais par code.
 - **Testable** : e2e contre le vrai binaire `la-console`.
 
-## Étape 8 — Orchestrateur GitHub App (remote)
+## Étape 8 — Orchestrateur GitHub App (remote) ⏸️ dépriorisé
 
 - Webhooks, jobs éphémères, persistance et verrou anti-parallèle gérés par cette couche au-dessus du harness. Le cœur est inchangé.
+- **Non prioritaire pour l'instant** : la priorité est un harness standard pilotable depuis une interface TUI Rust de base (étape 9).
 - **Testable** : tests d'intégration avec un serveur de test local.
+
+## Étape 9 — Interface TUI Rust de base 🔜 (prioritaire)
+
+- Une couche de transport **TUI (terminal)** en Rust, au-dessus du cœur de session : le harness standard devient pilotable depuis une interface terminal de base.
+- Couche optionnelle comme les autres : le cœur fonctionne sans.
+- **Testable** : e2e scripté contre la TUI.
 
 ## Hors scope v1
 
