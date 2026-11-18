@@ -17,6 +17,13 @@ sous-processus lancé, un fichier, ou une sortie non masquée.
   la-console, à réutiliser).
 - **Masquage `***`** de toute occurrence d'un secret connu dans toute sortie
   transmise à l'extérieur (réponses des outils, logs).
+- **Broker de credentials (reverse proxy)** : le harness joue ce rôle auprès des
+  outils. Quand un outil a besoin d'un credential réseau, il ne reçoit qu'un
+  **phantom token** (valeur fantôme de session) ; le vrai secret, détenu
+  uniquement par le harness, est injecté **à la sortie** par le proxy local,
+  uniquement vers la destination autorisée (pattern inspiré de
+  [nono](https://nono.sh)). Le secret n'entre jamais dans le processus de
+  l'outil — ni env, ni argv, ni mémoire lisible.
 - **Sous-processus uniquement** pour les outils : jamais de code d'outil dans
   le processus du harness. Un crash d'un outil ne tue pas le harness.
 - **Fail-closed** : réponse mal formée d'un outil = erreur, pas d'interprétation
@@ -27,7 +34,7 @@ sous-processus lancé, un fichier, ou une sortie non masquée.
 
 - **Local** : le harness tourne avec les droits du user, sur un repo local.
   Aucune confiance réseau requise.
-- **Remote (GitHub App)** : déploiement serveur en v2 avec user namespace non
+- **Remote (GitHub App, dépriorisé)** : déploiement serveur en v2 avec user namespace non
   privilégié + chroot par-dessus (defense in depth), jamais de root global au
   lancement. Vérifier `unprivileged_userns_clone` au boot du serveur.
 
