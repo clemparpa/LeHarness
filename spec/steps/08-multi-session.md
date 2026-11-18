@@ -54,3 +54,39 @@ reste en v2 par-dessus, toujours dépriorisé. Mécanisme et bornes justifiés d
 - Persistance transverse des sessions (étape 5, par session), ACP (étape 6),
   UI web.
 - Runtime async (`tokio` & co) : non — voir `spec/ecosystem.md` §8.
+
+## Implémentation (étape 8)
+
+- `crates/harness/src/serve.rs` : `Orchestrator` + boucle `serve()` (un thread
+  lecteur stdin, un thread lecteur par session → `mpsc` unique, boucle de
+  multiplexage simple, aucun runtime async). Chaque session est un
+  sous-processus `le-harness run --repo <repos-dir>/<repo> --json
+  --secrets-file <state>/serve-secrets/<id>.env --state-dir <state>/sessions
+  [--tool <binaire>]`, spawn via `process::spawn_piped` (brique extraite du
+  lanceur étape 3, cœur inchangé : `Tool` l'encapsule toujours pour le mode
+  synchrone). Le fichier secrets par session ne contient que le **phantom
+  token** généré par l'orchestrateur — l'orchestrateur lui-même a un
+  `SecretStore` vide et ne route que des lignes déjà masquées par le fils.
+- `run --json` (mode additif, comportement texte inchangé) : une ligne
+  `ToolRequest` en entrée → une ligne `ToolResponse` en sortie ;
+  `status` / `checkpoint` / `quit` sont des commandes internes, le reste est
+  forwardé à l'outil.
+- Protocole orchestrateur (ligne JSON sur stdin/stdout de `serve`), parsing
+  fail-closed (`parse_request`, champs inconnus rejetés) :
+  - `{"op":"start","repo":"r1"[,"id":"sess-x"]}` → `started` / `error`
+  - `{"op":"call","session":"...","input":"..."[,"id":N]}` → `accepted`
+    immédiat, puis `result` (taggé session + req) poussé quand le fils répond
+  - `{"op":"kill","session":"..."}` → `killed` (kill propre + reap)
+  - `{"op":"list"}` → `sessions` ; `{"op":"bounds"}` → bornes + actif ;
+    `{"op":"quit"}` → `ended` puis toutes les sessions sont tuées proprement
+  - réponse de session mal formée = `error` fail-closed + kill propre de la
+    session ; timeout par message (`--session-timeout`) = `error` + kill
+  - audit append-only par session : `<state>/audit/<id>.jsonl`, événements
+    (start/accepted/result/timeout/malformed/killed/ended) sans jamais de
+    contenu de requête/réponse
+- Bornes effectives : `--max-sessions` (refus fail-closed), timeout par message
+  + kill propre, ligne bornée à 1 MiO (lanceur). **rlimits sur les fils** :
+  pas faisables en `std` pur sans `unsafe` ni dépendance (`setrlimit` exige
+  `libc`) → restent côté **déploiement v2**, comme décidé à l'étape 3.
+- Pas de verrou de worktree : plusieurs sessions sur le même worktree ou
+  plusieurs worktrees du même repo sont autorisées (testé en e2e).

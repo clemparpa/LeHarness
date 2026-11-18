@@ -5,4 +5,5 @@ pub mod policy;
 pub mod process;
 pub mod run;
 pub mod secrets;
+pub mod serve;
 pub mod session;
