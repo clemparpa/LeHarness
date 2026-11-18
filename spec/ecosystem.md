@@ -39,7 +39,7 @@ concurrence, sans runtime async. Verdicts par brique : prendre / ne pas prendre 
 
 | Protocole / crate | Rôle | Statut | Verdict pour LeHarness |
 |---|---|---|---|
-| **ACP** (Zed/JetBrains) — crate [agent-client-protocol](https://crates.io/crates/agent-client-protocol) 1.10.x + [rust-sdk](https://github.com/agentclientprotocol/rust-sdk) | éditeur ↔ agent, JSON-RPC 2.0 sur stdio | Spec **v1 stable** (oct. 2026), Zed + JetBrains natifs, registre public d'agents (janv. 2026), 42+ agents / 19 éditeurs | **OUI, étape 6, couche optionnelle** — mais le SDK est **async** (futures + tokio pour process/stdio). En v1 : rôle `Agent` maison au-dessus de notre protocole ligne-JSON, sans runtime async (§8) |
+| **ACP** (Zed/JetBrains) — crate [agent-client-protocol](https://crates.io/crates/agent-client-protocol) 1.10.x + [rust-sdk](https://github.com/agentclientprotocol/rust-sdk) | éditeur ↔ agent, JSON-RPC 2.0 sur stdio | Spec **v1 stable** (oct. 2026), Zed + JetBrains natifs, registre public d'agents (janv. 2026), 42+ agents / 19 éditeurs | **OUI, étape 6, couche optionnelle** — mais le SDK est **async** (futures + tokio pour process/stdio). En v1 : rôle **`Proxy`** maison (entre éditeur client et agent LLM externe — le harness ne parle jamais au modèle) au-dessus de notre protocole ligne-JSON, sans runtime async (§8) |
 | **MCP** — crate [rmcp](https://docs.rs/rmcp) 3.6 (SDK Rust officiel) | agent ↔ outils externes MCP | spec 2026-07-28, basé sur **tokio** | **À considérer plus tard** si le harness appelle des serveurs MCP ; pas prioritaire vs la-console (étape 7) |
 | **Notre protocole ligne-JSON** (`process.rs`, étape 3) | harness ↔ outils internes (la-console…) et orchestrateur ↔ session | maison, synchrone, testé, fuzzé | **GARDER tel quel** — canal interne fail-closed, et base de l'orchestration multi-sessions (un processus par session) |
 | [jsonrpsee](https://github.com/paritytech/jsonrpsee) | JSON-RPC générique (WS/HTTP) | ✅ maintenu, **tokio**, lourd | **NE PAS PRENDRE** pour du stdio local — notre ligne-JSON suffit et est plus auditable |
@@ -100,7 +100,8 @@ co-développée avec JetBrains (natif dans les IDE JetBrains depuis déc. 2025),
 registre public d'agents (janv. 2026), 42+ agents et 19 éditeurs compatibles,
 JSON-RPC 2.0 sur stdio. L'étape 6 (ACP) reste au programme comme couche de
 transport optionnelle. Seule nuance : le SDK Rust officiel est **async** — voir §8
-pour la conséquence (rôle `Agent` maison, sans runtime async, en v1).
+pour la conséquence (rôle `Proxy` maison, sans runtime async, en v1 : le harness
+est un proxy entre l'éditeur et l'agent LLM externe, pas l'agent lui-même).
 
 ## 8. Décision révisée : concurrence bornée, sans runtime async
 
@@ -168,6 +169,24 @@ Uniquement sur **besoin mesuré**, et isolé dans une couche réseau dédiée (j
 le cœur) : front réseau à très haute densité de connexions (C10k), ou fan-out
 HTTP massif avec latence dominante mesurée. Tant que les sessions restent des
 processus lourds, ce n'est pas notre cas.
+
+### 8.2 Tranche finale (nov. 2026 — clarifié : le harness est un proxy ACP)
+
+Cas d'usage tranchés :
+
+- **Plusieurs sessions en même temps** (lancer plusieurs tâches) → côté harness,
+  étape 8 `serve` : **un processus par session**, thread lecteur par session →
+  `mpsc`, bornes fail-closed (`--max-sessions`, flock par repo, rlimits, timeout
+  par message). Zéro async.
+- **Appels d'outils en parallèle** : l'agent externe peut en émettre plusieurs
+  d'un coup ; le harness doit donc accepter plusieurs requêtes **en vol** → cœur
+  étape 9 : `submit` non bloquant + worker threads bornées
+  (`--max-parallel-tools`, défaut 4, plafond 16), résultats taggés par id via
+  `mpsc`, redirections (`>`/`>>`) sérialisées par mutex, timeout + kill +
+  masquage par appel. Zéro async.
+- **Runtime async** : exclu du cœur. Il n'entrera que dans une couche réseau
+  isolée et optionnelle (webhooks GitHub App en v2, MCP-over-HTTP) sur besoin
+  mesuré — le seul endroit où l'I/O réseau deviendrait dominant.
 
 ## 9. Sources principales
 

@@ -69,7 +69,7 @@ Prévues, par étape :
 | Regex (fichiers sensibles) | `regex` (temps linéaire, pas de ReDoS) | au besoin |
 | HTTP côté harness (orchestrateur), mode **blocking** | `reqwest` + rustls | 8 |
 | Logs structurés | `tracing`, `tracing-subscriber` | au besoin |
-| Transport ACP optionnel | **v1 : rôle `Agent` maison synchrone** au-dessus du protocole ligne-JSON ; le SDK officiel `agent-client-protocol` (async) reste l'option si besoin mesuré | 6 |
+| Proxy ACP optionnel | **v1 : rôle `Proxy` maison synchrone** (entre éditeur client ACP et agent LLM externe) au-dessus du protocole ligne-JSON ; SDK officiel `agent-client-protocol` (async, `conductor`/Proxy) si besoin mesuré | 6 |
 
 Notes :
 - Cœur sécurité (`secrets.rs`, `process.rs`, hooks de session) : **maison**,

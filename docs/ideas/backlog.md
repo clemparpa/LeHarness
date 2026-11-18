@@ -42,10 +42,15 @@
       + `signal-hook` pour la restauration du terminal. `tui-rs` archivé,
       `cursive`/`termion`/`termwiz`/`blessed-rs` non retenus, `tuirealm` reporté.
       Tour d'horizon complet : `spec/ecosystem.md`.
-- [x] **ACP en v1 : rôle `Agent` maison sans runtime async ✅ décidé** : la spec
-      ACP v1 est stable (oct. 2026) mais le SDK Rust officiel est async
-      (futures/tokio) — en v1 on implémente le rôle `Agent` au-dessus de notre
-      protocole ligne-JSON ; le SDK officiel reste l'option si besoin mesuré.
+- [x] **ACP : le harness est un Proxy, pas un Agent ✅ décidé (clarifié nov. 2026)** :
+      spec ACP v1 stable (oct. 2026). Le harness se branche entre l'éditeur (client
+      ACP) et l'agent LLM externe (qui garde boucle LLM et chat) : il intercepte les
+      appels d'outils et les exécute de façon confinée. En v1, rôle `Proxy` maison
+      synchrone au-dessus du protocole ligne-JSON ; SDK officiel (async,
+      `conductor`/Proxy) si besoin mesuré.
+- [x] **Deux UI, deux côtés ✅ clarifié** : boucle LLM + chat UI + client ACP =
+      agent externe ; TUI (étape 9) = front local optionnel du cœur headless
+      (« safe shell »), sans boucle LLM ni chat.
 
 ## ✅ Décidés
 

@@ -52,10 +52,19 @@
 - Persistance de session en local via le trait de l'étape 1 : fichiers JSON (v1) ou `redb` si le volume le justifie.
 - **Testable** : test stop/reprise de session.
 
-## Étape 6 — ACP en couche de transport optionnelle (entrée)
+## Étape 6 — Proxy ACP en couche de transport optionnelle (entrée)
 
-- Implémenter le rôle `Agent` du SDK officiel `agent-client-protocol` par-dessus le cœur : transport JSON-RPC uniquement, zéro logique métier. Le harness devient pilotable depuis un éditeur compatible ACP (ex. Zed).
-- **Testable** : avec l'exemple client du SDK officiel.
+- Le harness joue le rôle **`Proxy`** ACP (pas `Agent`) : placé entre l'éditeur
+  (client ACP, ex. Zed) et l'agent LLM externe, il intercepte les appels
+  d'outils, les exécute via la-console de façon confinée (politique du repo,
+  masquage des secrets, phantom token) et renvoie les résultats masqués.
+  La boucle LLM et le chat restent côté agent externe — le harness ne parle
+  jamais au modèle.
+- Transport JSON-RPC uniquement, zéro logique métier dans cette couche, cœur
+  inchangé. v1 : rôle `Proxy` maison synchrone au-dessus du protocole
+  ligne-JSON ; SDK officiel `agent-client-protocol` (async, `conductor`/Proxy)
+  si besoin mesuré.
+- **Testable** : avec l'exemple client du SDK officiel + un agent bidon.
 
 ## Étape 7 — Connecteur la-console (outil optionnel)
 
