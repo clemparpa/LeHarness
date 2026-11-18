@@ -21,6 +21,24 @@
 - [x] **GitHub App remote dépriorisé ✅ décidé** : l'étape 8 n'est plus la
       priorité. La priorité est un harness standard pilotable depuis une
       **interface TUI Rust de base** (nouvelle étape 9).
+- [x] **Stack TUI (étape 9) ✅ décidé** : `ratatui` + `crossterm` (boucle synchrone
+      `poll`/`read` + thread d'événements → `mpsc`, rendu sur stderr), `color-eyre`
+      + `signal-hook` pour la restauration du terminal. `tui-rs` archivé,
+      `cursive`/`termion`/`termwiz`/`blessed-rs` non retenus, `tuirealm` reporté.
+      Tour d'horizon complet : `spec/ecosystem.md`.
+- [x] **Rester synchrone ✅ décidé** : pas de runtime async dans le cœur.
+      Arguments : protocole mono-appelant ligne par ligne (rien à paralléliser),
+      code déterministe = surface d'attaque minimale face à un agent compromis,
+      pas de besoin mesuré (les I/O dominantes sont des sous-processus déjà gérés
+      par `process.rs`), deps/supply chain allégées (pas de `tokio` dans le
+      `Cargo.lock`). Réouverture uniquement sur besoin mesuré (multi-sessions
+      concurrentes, fan-out réseau à latence dominante, UI réactive pendant un
+      traitement long in-process) et alors couche par couche, jamais dans le cœur.
+      Détail : `spec/ecosystem.md` §8.
+- [x] **ACP en v1 : rôle `Agent` maison synchrone ✅ décidé** : la spec ACP v1 est
+      stable (oct. 2026) mais le SDK Rust officiel est async (futures/tokio) — en v1
+      on implémente le rôle `Agent` au-dessus de notre protocole ligne-JSON
+      synchrone ; le SDK officiel reste l'option si besoin mesuré.
 
 ## ✅ Décidés
 

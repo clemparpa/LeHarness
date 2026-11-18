@@ -34,4 +34,5 @@ Il est **entièrement indépendant de la-console** : la console (repo séparé
 | [security.md](security.md) | Modèle de menaces, règles des secrets, sous-processus, local vs remote |
 | [testing.md](testing.md) | Stratégie de test reprise de la-console : TDD, proptest, e2e, fuzz, mutants, CI |
 | [structure.md](structure.md) | Structure du dépôt et dépendances figées |
+| [ecosystem.md](ecosystem.md) | Tour d'horizon de l'écosystème Rust (nov. 2026) : stack retenue, décision synchrone vs async |
 | [steps/](steps/README.md) | Spec détaillée de chaque étape de la roadmap |

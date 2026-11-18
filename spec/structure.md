@@ -36,23 +36,37 @@ LeHarness/
 - **Aucune dépendance vers la-console** : la console est un binaire externe,
   lancé via `process.rs`. Aucun `use la_console` nulle part.
 
-## Dépendances (figées pour la v1)
+## Dépendances
+
+**Règle : 100 % synchrone** — aucun runtime async (`tokio` & co) en dépendance
+directe. Décision et critères de réouverture : [ecosystem.md](ecosystem.md) §8.
+`cargo shear` vérifie qu'aucune dépendance n'est inutilisée.
+
+Actuelles (`Cargo.lock`) :
 
 | Besoin | Crate |
 |---|---|
-| Async + timeout + sous-processus | `tokio` (`tokio::process`) |
-| Spawn de process (synchrone de secours) | `std::process` (pas de crate) |
-| Protocole JSON ligne par ligne | `serde`, `serde_json` |
 | CLI | `clap` |
-| HTTP côté harness (orchestrateur GitHub App) | `reqwest` + rustls |
-| Checksum / hachage | `sha2` |
-| Regex (fichiers sensibles) | `regex` (temps linéaire, pas de ReDoS) |
-| Logs structurés | `tracing`, `tracing-subscriber` |
+| Protocole JSON ligne par ligne | `serde`, `serde_json` |
 | Erreurs typées | `thiserror` |
-| Persistance locale (étape 5, si volume le justifie) | `redb` |
-| Transport ACP optionnel (étape 6) | `agent-client-protocol` (officiel) |
+| Spawn de process + timeout + kill | `std::process` + thread + `recv_timeout` (maison, synchrone — **pas de tokio**) |
 | Tests (répertoires temporaires) | `tempfile` (dev-dependency) |
 | Property-based tests | `proptest` (dev-dependency) |
+
+Prévues, par étape :
+
+| Besoin | Crate | Étape |
+|---|---|---|
+| TUI : rendu + backend terminal | `ratatui` + `crossterm` | 9 |
+| Erreurs / panic hook TUI (restore terminal), signaux | `color-eyre`, `signal-hook` | 9 |
+| Widgets TUI (saisie, spinner) | `ratatui-textarea` (ou `tui-input`), `throbber-widgets-tui` | 9 |
+| Secrets : newtype sans `Debug`/`Display` + wipe-on-drop | `secrecy` (+ `zeroize`) | durcissement étape 2 |
+| Persistance locale (si le volume le justifie) | `redb` | 5 |
+| Checksum / hachage | `sha2` | au besoin |
+| Regex (fichiers sensibles) | `regex` (temps linéaire, pas de ReDoS) | au besoin |
+| HTTP côté harness (orchestrateur), mode **blocking** | `reqwest` + rustls | 8 |
+| Logs structurés | `tracing`, `tracing-subscriber` | au besoin |
+| Transport ACP optionnel | **v1 : rôle `Agent` maison synchrone** au-dessus du protocole ligne-JSON ; le SDK officiel `agent-client-protocol` (async) reste l'option si besoin mesuré | 6 |
 
 Notes :
 - Cœur sécurité (`secrets.rs`, `process.rs`, hooks de session) : **maison**,

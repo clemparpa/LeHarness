@@ -8,6 +8,7 @@
 - Aucun `unsafe` en v1 (`#![forbid(unsafe_code)]`).
 - **Le harness est 100 % indépendant de la-console** : deux repos séparés (`clemparpa/LaConsole`), aucune dépendance de code. La console n'est qu'un outil optionnel, branché comme binaire externe (étape 7).
 - **Local-first** : le harness tourne en local sur un repo local. Le mode GitHub App remote (étape 8) est **dépriorisé** (voir étape 8).
+- **Synchrone par défaut** : pas de runtime async dans le cœur (protocole mono-appelant ligne par ligne, code déterministe = surface d'attaque minimale). On n'y passe que sur besoin mesuré, couche par couche — arguments et critères de réouverture dans [spec/ecosystem.md](spec/ecosystem.md).
 - **Le harness est le broker de credentials des outils** : il joue le rôle de **reverse proxy local** (pattern « phantom token », inspiré de [nono](https://nono.sh)) — les outils ne reçoivent qu'un token fantôme de session ; le vrai secret, détenu uniquement par le harness, est injecté à la sortie, uniquement vers les destinations autorisées.
 - Sur le dépôt public : workflows de PR de forks bloqués (garde-fou `if:` dans la CI) — jamais de jobs coûteux exposés aux forks.
 
@@ -69,9 +70,11 @@
 
 ## Étape 9 — Interface TUI Rust de base 🔜 (prioritaire)
 
+- Spec : [spec/steps/09-tui.md](spec/steps/09-tui.md)
 - Une couche de transport **TUI (terminal)** en Rust, au-dessus du cœur de session : le harness standard devient pilotable depuis une interface terminal de base.
+- Stack retenue (tour d'horizon dans [spec/ecosystem.md](spec/ecosystem.md)) : **ratatui + crossterm** (boucle synchrone `poll`/`read` + thread d'événements → `mpsc`, rendu sur stderr), `color-eyre` + `signal-hook` pour la restauration propre du terminal.
 - Couche optionnelle comme les autres : le cœur fonctionne sans.
-- **Testable** : e2e scripté contre la TUI.
+- **Testable** : e2e scripté contre la TUI (`TestBackend` + scénario clavier/PTY).
 
 ## Hors scope v1
 

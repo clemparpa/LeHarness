@@ -59,9 +59,12 @@ Aucune n'est obligatoire ; le cœur fonctionne sans.
 | Couche | Rôle | Tech |
 |---|---|---|
 | CLI local | `le-harness run --repo <chemin>`, boucle interactive | clap |
-| TUI Rust de base | interface terminal standard au-dessus du cœur (prioritaire) | crate TUI Rust (ex. ratatui) |
-| ACP | piloté comme agent depuis un éditeur (Zed...) | crate officielle `agent-client-protocol`, rôle `Agent` |
-| Orchestrateur GitHub App | webhooks, jobs éphémères (remote, dépriorisé) | reqwest + rustls côté harness |
+| TUI Rust de base | interface terminal standard au-dessus du cœur (prioritaire) | `ratatui` + `crossterm`, boucle synchrone (voir [ecosystem.md](ecosystem.md)) |
+| ACP | piloté comme agent depuis un éditeur (Zed...) | v1 : rôle `Agent` maison synchrone au-dessus du protocole ligne-JSON ; SDK officiel `agent-client-protocol` (async) si besoin mesuré |
+| Orchestrateur GitHub App | webhooks, jobs éphémères (remote, dépriorisé) | reqwest + rustls, mode blocking, côté harness |
+
+> **Synchrone par défaut** : aucune couche n'embarque de runtime async en v1 ;
+> critères de réouverture dans [ecosystem.md](ecosystem.md) §8.
 
 ## Règle d'indépendance
 
