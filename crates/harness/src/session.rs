@@ -4,13 +4,30 @@
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SessionId(String);
+
+#[derive(Debug, Error)]
+#[error("invalid session id {0:?}")]
+pub struct InvalidSessionId(String);
+
+impl FromStr for SessionId {
+    type Err = InvalidSessionId;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Err(InvalidSessionId(s.to_string()));
+        }
+        Ok(Self(s.to_string()))
+    }
+}
 
 impl SessionId {
     pub fn generate() -> Self {
@@ -30,13 +47,13 @@ impl fmt::Display for SessionId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionState {
     Running,
     Ended,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub id: SessionId,
     pub root: PathBuf,

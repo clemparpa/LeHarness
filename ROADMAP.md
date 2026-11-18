@@ -47,10 +47,12 @@
 - `le-harness run --repo <chemin>` : démarre une session sur un repo local, lit la politique du repo (`trusted.txt`, `sensitives.txt`), boucle interactive locale (stdin → session → outil).
 - **Testable** : e2e scripté.
 
-## Étape 5 — Checkpoints locaux + reprise
+## Étape 5 — Checkpoints locaux + reprise 🚧 (cette PR)
 
-- Persistance de session en local via le trait de l'étape 1 : fichiers JSON (v1) ou `redb` si le volume le justifie.
-- **Testable** : test stop/reprise de session.
+- Spec : [spec/steps/05-checkpoints.md](spec/steps/05-checkpoints.md)
+- `persistence.rs` : `FilePersistence`, un fichier JSON par session dans le state dir (défaut `$HOME/.local/share/le-harness/sessions`, surcharge `--state-dir`), écriture atomique (tmp + sync + rename), id de session validé fail-closed, fichier corrompu = erreur. Pas de `redb` en v1 (volume non justifié).
+- CLI : `run --resume <SESSION_ID>` reprend une session interrompue (crash) ; refus fail-closed : id inconnu, session terminée, racine différente.
+- **Testable** : test stop/reprise (unitaire + e2e avec kill du processus).
 
 ## Étape 6 — Proxy ACP en couche de transport optionnelle (entrée)
 

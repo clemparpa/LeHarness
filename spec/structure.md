@@ -15,7 +15,8 @@ LeHarness/
         secrets.rs    # SecretStore : memoire uniquement, refresh, masquage ***
         process.rs    # lanceur generique de sous-processus (ligne JSON), timeout, kill
         policy.rs     # politique du repo (trusted.txt / sensitives.txt), fail-closed
-        run.rs        # boucle CLI local interactive (run --repo), testable hors main
+        persistence.rs # checkpoints locaux : un fichier JSON par session, écriture atomique (étape 5)
+        run.rs        # boucle CLI local interactive (run --repo [--resume]), testable hors main
         bin/
           dummy-tool.rs  # binaire outil bidon pour les tests e2e (CARGO_BIN_EXE_dummy-tool)
       tests/
